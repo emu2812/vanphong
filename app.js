@@ -100,7 +100,7 @@ function zipStored(entries){
 
 /* ---------- Soạn văn bản ---------- */
 var currentDocId=null;
-function cmd(c,v){$('editor').focus();document.execCommand(c,false,v==null?null:v)}
+function cmd(c,v){$('editor').focus();document.execCommand(c,false,v==null?null:v);try{docNoteEdit()}catch(e){}}
 function wrapSpan(style){
   var sel=window.getSelection();if(!sel.rangeCount)return;
   var r=sel.getRangeAt(0);if(r.collapsed)return;
@@ -119,7 +119,7 @@ function applyFont(v){
 }
 function applySize(px){wrapSpan({fontSize:px+'px'})}
 function setLineHeight(v){$('editor').style.lineHeight=v}
-function newDoc(){currentDocId=null;trackChangesOn=false;setPageBg('');$('docName').value='';$('editor').innerHTML='';savedDocSnap=docSnapNow();$('editor').focus()}
+function newDoc(){currentDocId=null;trackChangesOn=false;setPageBg('');$('docName').value='';$('editor').innerHTML='';savedDocSnap=docSnapNow();try{docHistoryReset()}catch(e){}$('editor').focus()}
 function saveDoc(silent){
   var name=$('docName').value.trim()||('Tài liệu '+(new Date()).toLocaleDateString('vi-VN'));
   if(!currentDocId)name=uniqueName('doc',name);
@@ -134,7 +134,7 @@ function saveDoc(silent){
 }
 function openDoc(id){
   var d=loadJSON('vb_docs_v1',[]).find(function(x){return x.id===id});if(!d)return;
-  currentDocId=d.id;$('docName').value=d.name;$('editor').innerHTML=d.html||'';setPageBg(d.bg||'');savedDocSnap=docSnapNow();gotoTab('editor');$('editor').focus();
+  currentDocId=d.id;$('docName').value=d.name;$('editor').innerHTML=d.html||'';setPageBg(d.bg||'');savedDocSnap=docSnapNow();try{docHistoryReset()}catch(e){}gotoTab('editor');$('editor').focus();
 }
 function deleteDoc(id){
   if(!confirm('Xóa tài liệu này khỏi máy?'))return;
@@ -283,7 +283,19 @@ function paraFromNode(node,opts){
   var runs=[];collectRuns(node,{},runs);
   return {kind:'para',align:align,heading:heading,runs:runs,bullet:opts.bullet||null,pageBreak:!!opts.pageBreak,indLeft:indLeft,indFirst:indFirst,border:border,borderColor:borderColor};
 }
-function docxBlocksFromNode(root){
+function nodeClass(node){
+  if(!node)return '';
+  try{
+    if(node.getAttribute){var c=node.getAttribute('class');if(c)return c}
+  }catch(e){}
+  if(typeof node.className==='string')return node.className;
+  return '';
+}
+function docxBlocksFromNode(root,ctxIn){
+  var ctxB=ctxIn||{};
+  if(!ctxB.headerParas)ctxB.headerParas=[];
+  if(!ctxB.footerParas)ctxB.footerParas=[];
+  if(!ctxB.comments)ctxB.comments=[];
   var blocks=[];
   function cellParas(tc){
     var out=[];
@@ -305,6 +317,16 @@ function docxBlocksFromNode(root){
     if(b.nodeType===3){if(b.nodeValue.trim())blocks.push({kind:'para',align:'left',heading:null,runs:[{text:b.nodeValue,fmt:{}}],bullet:null,pageBreak:false});return}
     if(b.nodeType!==1)return;
     var tg=b.tagName.toLowerCase();
+    var clsB=nodeClass(b);
+    if(clsB.indexOf('doc-header')>=0){ctxB.headerParas.push(paraFromNode(b));return}
+    if(clsB.indexOf('doc-footer')>=0){ctxB.footerParas.push(paraFromNode(b));return}
+    if(clsB.indexOf('doc-toc')>=0){blocks.push({kind:'toc'});return}
+    if(clsB.indexOf('comment-para')>=0){
+      var cp=paraFromNode(b);
+      var ctext='';(cp.runs||[]).forEach(function(r){if(r.text)ctext+=r.text});
+      blocks.push({kind:'comment',text:ctext});
+      return;
+    }
     if(tg==='ul'||tg==='ol'){
       Array.from(b.childNodes||[]).forEach(function(li){
         if(li.nodeType===1&&li.tagName.toLowerCase()==='li')blocks.push(paraFromNode(li,{bullet:tg==='ol'?'decimal':'bullet'}));
@@ -342,8 +364,30 @@ function docxXmlFromNode(root,ctxIn){
   if(!ctx.date)ctx.date=new Date().toISOString();
   var lh=(root&&root.style&&root.style.lineHeight)?parseFloat(root.style.lineHeight):NaN;
   if(!isNaN(lh)&&lh>0)ctx.lineSpacing=Math.round(lh*240);
-  var blocks=docxBlocksFromNode(root);
+  if(!ctx.comments)ctx.comments=[];
+  if(!ctx.headerParas)ctx.headerParas=[];
+  if(!ctx.footerParas)ctx.footerParas=[];
+  var blocks=docxBlocksFromNode(root,ctx);
   var body=blocks.map(function(b){
+    if(b.kind==='toc'){
+      var heads=blocks.filter(function(h){return h.heading==='Heading1'||h.heading==='Heading2'||h.heading==='Heading3'});
+      var entries=heads.map(function(h){
+        var lv=parseInt(h.heading.slice(-1),10);
+        var txt='';(h.runs||[]).forEach(function(r){if(r.text)txt+=r.text});
+        return '<w:p><w:pPr><w:ind w:left="'+((lv-1)*360)+'"/></w:pPr><w:r><w:t xml:space="preserve">'+esc(txt)+'</w:t></w:r></w:p>';
+      }).join('');
+      return '<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Mục lục</w:t></w:r></w:p>'
+        +'<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r></w:p>'
+        +'<w:p><w:r><w:instrText xml:space="preserve"> TOC \\o "1-3" \\h \\z \\u </w:instrText></w:r></w:p>'
+        +'<w:p><w:r><w:fldChar w:fldCharType="separate"/></w:r></w:p>'
+        +entries
+        +'<w:p><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>';
+    }
+    if(b.kind==='comment'){
+      var ci=ctx.comments.length;
+      ctx.comments.push({text:b.text||''});
+      return '<w:p><w:commentRangeStart w:id="'+ci+'"/><w:r><w:commentReference w:id="'+ci+'"/></w:r><w:commentRangeEnd w:id="'+ci+'"/></w:p>';
+    }
     if(b.kind==='table'){
       var ncols=Math.max.apply(null,b.rows.map(function(r){return r.length}));
       var grid='<w:tblGrid>'+Array.from({length:ncols}).map(function(){return '<w:gridCol w:w="2400"/>'}).join('')+'</w:tblGrid>';
@@ -362,7 +406,11 @@ function docxXmlFromNode(root,ctxIn){
     var bgHex=hexColor(ctx.bg);
     if(bgHex)bgXml='<w:background w:color="'+bgHex+'"/>';
   }
-  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'+bgXml+'<w:body>'+body+'</w:body></w:document>';
+  var sectPr='<w:sectPr>'
+    +((ctx.headerParas&&ctx.headerParas.length)?'<w:headerReference w:type="default" r:id="rIdHdr"/>':'')
+    +((ctx.footerParas&&ctx.footerParas.length)?'<w:footerReference w:type="default" r:id="rIdFtr"/>':'')
+    +'<w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr>';
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'+bgXml+'<w:body>'+body+sectPr+'</w:body></w:document>';
 }
 function docxXml(){return docxXmlFromNode($('editor'));}
 var DOCX_STYLES='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
@@ -387,6 +435,25 @@ function buildDocxBlobFromNode(root,opts){
   opts=opts||{};
   var ctx={images:[],date:new Date().toISOString(),bg:opts.bg||''};
   var docXml=docxXmlFromNode(root,ctx);
+  /* Ban 1.7: dau/chan trang that + ghi chu that. header/footer la part
+     rieng (header1.xml/footer1.xml) tham chieu tu sectPr; ghi chu la
+     comments.xml tham chieu tu document rels. Anh trong dau/chan trang
+     (neu co) dung chung rel anh cua tai lieu (rIdImg*). */
+  var headerXml=null,footerXml=null,commentsXml=null;
+  if(ctx.headerParas&&ctx.headerParas.length){
+    headerXml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>'
+      +ctx.headerParas.map(function(pp){return docxParaXml(pp,ctx)}).join('')+'</w:body></w:document>';
+  }
+  if(ctx.footerParas&&ctx.footerParas.length){
+    footerXml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>'
+      +ctx.footerParas.map(function(pp){return docxParaXml(pp,ctx)}).join('')+'</w:body></w:document>';
+  }
+  if(ctx.comments&&ctx.comments.length){
+    commentsXml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+      +ctx.comments.map(function(cm,ci){
+        return '<w:comment w:id="'+ci+'" w:author="Văn phòng của Bùi" w:date="'+ctx.date+'"><w:p><w:r><w:t xml:space="preserve">'+esc(cm.text)+'</w:t></w:r></w:p></w:comment>';
+      }).join('')+'</w:comments>';
+  }
   var rels='<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>';
   var typesExtra='';
   var entries=[
@@ -413,6 +480,30 @@ function buildDocxBlobFromNode(root,opts){
     if(mm){try{bytes=dataUrlToBytes(src)}catch(e){bytes=null}}
     if(bytes)entries.push({name:'word/media/image'+(i+1)+'.'+ext,data:bytes});
   });
+  var imgRelsXml='';
+  ctx.images.forEach(function(src,i){
+    var mm2=/^data:([^;]+);base64,/.exec(src||'');
+    var ext2='jpg';
+    if(mm2){var sub2=mm2[1].split('/')[1]||'jpg';sub2=sub2.replace(/[^a-z0-9]/g,'');ext2=(sub2==='jpeg')?'jpg':(sub2||'jpg')}
+    imgRelsXml+='<Relationship Id="rIdImg'+(i+1)+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image'+(i+1)+'.'+ext2+'"/>';
+  });
+  if(headerXml){
+    rels+='<Relationship Id="rIdHdr" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>';
+    typesExtra+='<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>';
+    entries.push({name:'word/header1.xml',data:headerXml});
+    entries.push({name:'word/_rels/header1.xml.rels',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+imgRelsXml+'</Relationships>'});
+  }
+  if(footerXml){
+    rels+='<Relationship Id="rIdFtr" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>';
+    typesExtra+='<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>';
+    entries.push({name:'word/footer1.xml',data:footerXml});
+    entries.push({name:'word/_rels/footer1.xml.rels',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+imgRelsXml+'</Relationships>'});
+  }
+  if(commentsXml){
+    rels+='<Relationship Id="rIdCmt" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>';
+    typesExtra+='<Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>';
+    entries.push({name:'word/comments.xml',data:commentsXml});
+  }
   entries.push({name:'word/_rels/document.xml.rels',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+rels+'</Relationships>'});
   entries[0].data='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>'+typesExtra+'<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/><Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/></Types>';
   return zipStored(entries);
@@ -425,12 +516,139 @@ function exportDocx(){
 function testFont(f){$('fontTest').style.fontFamily="'"+f+"', -apple-system, 'Segoe UI', sans-serif"}
 
 /* ---------- Bảng tính: chạm chọn, chạm hai lần sửa, vuốt cuộn ---------- */
-var SHEET_ROWS=30,SHEET_COLS=10;
+var SHEET_ROWS=100,SHEET_COLS=26;
+var sheetMerges=[];
 var sheetRaw=Array.from({length:SHEET_ROWS},function(){return Array(SHEET_COLS).fill('')});
 var currentSheetId=null,selCell={r:0,c:0},lastTap={key:'',t:0};
-function colName(c){return String.fromCharCode(65+c)}
+function colName(c){var n=c+1,out='';while(n>0){var m=(n-1)%26;out=String.fromCharCode(65+m)+out;n=Math.floor((n-1)/26)}return out}
+function colIndexFromName(nm){var v=0;for(var i=0;i<nm.length;i++)v=v*26+(nm.charCodeAt(i)-64);return v-1}
 function cellRef(r,c){return colName(c)+(r+1)}
-function parseRef(s){var m=/^([A-J])([1-9][0-9]*)$/.exec(s.trim().toUpperCase());if(!m)return null;return {r:parseInt(m[2],10)-1,c:m[1].charCodeAt(0)-65}}
+function parseRef(s){var m=/^([A-Z]+)([1-9][0-9]*)$/.exec(s.trim().toUpperCase());if(!m)return null;return {r:parseInt(m[2],10)-1,c:colIndexFromName(m[1])}}
+/* Ban 1.7: gop o. sheetMerges: danh sach {r1,c1,r2,c2} (o trai-tren giu gia
+   tri, cac o con lai trong vung trong va khong ve rieng). Cong thuc tro toi
+   o trong vung gop tinh theo gia tri o trai-tren (qua cellValue), con hien
+   thi (displayCell) cua o con lai la rong — dung nhu Excel ve mat hinh. */
+function normalizeMerges(list){
+  var out=[],seen={};
+  (list||[]).forEach(function(m){
+    if(!m)return;
+    var r1=Math.min(+m.r1,+m.r2),r2=Math.max(+m.r1,+m.r2);
+    var c1=Math.min(+m.c1,+m.c2),c2=Math.max(+m.c1,+m.c2);
+    if(isNaN(r1)||isNaN(r2)||isNaN(c1)||isNaN(c2))return;
+    if(r1<0||c1<0||r2>=SHEET_ROWS||c2>=SHEET_COLS)return;
+    if(r1===r2&&c1===c2)return;
+    var k=r1+','+c1+','+r2+','+c2;
+    if(seen[k])return;seen[k]=true;
+    out.push({r1:r1,c1:c1,r2:r2,c2:c2});
+  });
+  return out;
+}
+function mergeAtTop(r,c){
+  for(var i=0;i<sheetMerges.length;i++){var m=sheetMerges[i];if(m.r1===r&&m.c1===c)return m}
+  return null;
+}
+function mergeTopLeft(r,c){
+  for(var i=0;i<sheetMerges.length;i++){var m=sheetMerges[i];
+    if(r>=m.r1&&r<=m.r2&&c>=m.c1&&c<=m.c2)return {r:m.r1,c:m.c1,merge:m}}
+  return null;
+}
+function isMergeSlave(r,c){var t=mergeTopLeft(r,c);return !!t&&(t.r!==r||t.c!==c)}
+function mergeRangeInternal(r1,c1,r2,c2){
+  r1=Math.min(r1,r2);r2=Math.max(r1,r2);c1=Math.min(c1,c2);c2=Math.max(c1,c2);
+  if(r1<0||c1<0||r2>=SHEET_ROWS||c2>=SHEET_COLS)return false;
+  if(r1===r2&&c1===c2)return false;
+  sheetMerges=sheetMerges.filter(function(m){return m.r2<r1||m.r1>r2||m.c2<c1||m.c1>c2});
+  for(var r=r1;r<=r2;r++)for(var cc=c1;cc<=c2;cc++){
+    if(r===r1&&cc===c1)continue;
+    if(sheetRaw[r])sheetRaw[r][cc]='';
+    delete cellFmt[cellFmtKey(r,cc)];
+  }
+  sheetMerges.push({r1:r1,c1:c1,r2:r2,c2:c2});
+  sheetMerges=normalizeMerges(sheetMerges);
+  return true;
+}
+function mergeRange(r1,c1,r2,c2){
+  if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return false}
+  pushSheetHistory();
+  var ok=mergeRangeInternal(r1,c1,r2,c2);
+  if(!ok){undoSheet();}
+  renderSheet();updateStatusBar();
+  return ok;
+}
+function unmergeAtInternal(r,c){
+  var t=mergeTopLeft(r,c);if(!t)return false;
+  sheetMerges=sheetMerges.filter(function(m){return m!==t.merge});
+  return true;
+}
+function unmergeAt(r,c){
+  if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return false}
+  pushSheetHistory();
+  var ok=unmergeAtInternal(r,c);
+  renderSheet();updateStatusBar();
+  return ok;
+}
+function mergeSelectedCells(){
+  if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}
+  var def=cellRef(selCell.r,selCell.c)+':'+cellRef(selCell.r,Math.min(selCell.c+1,SHEET_COLS-1));
+  var txt=prompt('Nhập vùng cần gộp (ví dụ A1:C1, A1:B3):',def);if(!txt)return;
+  var parts=txt.split(':');
+  var a=parseRef(parts[0]||''),b=parts.length>1?parseRef(parts[1]):a;
+  if(!a||!b){alert('Vùng gộp không đúng dạng (ví dụ A1:C1).');return}
+  if(!mergeRange(a.r,a.c,b.r,b.c))alert('Không gộp được vùng này (cần ít nhất 2 ô trong lưới).');
+  else selCell={r:Math.min(a.r,b.r),c:Math.min(a.c,b.c)};
+}
+function unmergeSelectedCell(){
+  if(!unmergeAt(selCell.r,selCell.c))alert('Ô đang chọn không nằm trong vùng gộp nào.');
+}
+function shiftMergesRows(at,delta){
+  var out=[];
+  sheetMerges.forEach(function(m){
+    if(delta>0&&m.r1>=at)out.push({r1:m.r1+delta,c1:m.c1,r2:m.r2+delta,c2:m.c2});
+    else if(delta>0&&m.r1<at&&m.r2>=at)out.push({r1:m.r1,c1:m.c1,r2:m.r2+delta,c2:m.c2});
+    else if(delta<0&&m.r2<at)out.push(m);
+    else if(delta<0&&m.r1>at)out.push({r1:m.r1+delta,c1:m.c1,r2:m.r2+delta,c2:m.c2});
+    else if(delta<0&&m.r1<=at&&m.r2>=at){
+      if(m.r1===m.r2){/* hang duy nhat bi xoa: bo gop, giu gia tri */}
+      else if(m.r1===at)out.push({r1:m.r1,c1:m.c1,r2:m.r2+delta,c2:m.c2});
+      else out.push({r1:m.r1,c1:m.c1,r2:m.r2+delta,c2:m.c2});
+    }else out.push(m);
+  });
+  sheetMerges=normalizeMerges(out);
+}
+function shiftMergesCols(at,delta){
+  var out=[];
+  sheetMerges.forEach(function(m){
+    if(delta>0&&m.c1>=at)out.push({r1:m.r1,c1:m.c1+delta,r2:m.r2,c2:m.c2+delta});
+    else if(delta>0&&m.c1<at&&m.c2>=at)out.push({r1:m.r1,c1:m.c1,r2:m.r2,c2:m.c2+delta});
+    else if(delta<0&&m.c2<at)out.push(m);
+    else if(delta<0&&m.c1>at)out.push({r1:m.r1,c1:m.c1+delta,r2:m.r2,c2:m.c2+delta});
+    else if(delta<0&&m.c1<=at&&m.c2>=at){
+      if(m.c1===m.c2){}
+      else if(m.c1===at)out.push({r1:m.r1,c1:m.c1,r2:m.r2,c2:m.c2+delta});
+      else out.push({r1:m.r1,c1:m.c1,r2:m.r2,c2:m.c2+delta});
+    }else out.push(m);
+  });
+  sheetMerges=normalizeMerges(out);
+}
+function remapMergesAfterRowReorder(oldToNew){
+  var out=[];
+  sheetMerges.forEach(function(m){
+    if(m.r1===m.r2){
+      var nr=oldToNew[m.r1];
+      if(nr>=0)out.push({r1:nr,c1:m.c1,r2:nr,c2:m.c2});
+      return;
+    }
+    var mapped=[];
+    for(var r=m.r1;r<=m.r2;r++){var nr2=oldToNew[r];if(nr2<0)return;mapped.push(nr2)}
+    mapped.sort(function(a,b){return a-b});
+    var cont=true;
+    for(var i=1;i<mapped.length;i++)if(mapped[i]!==mapped[0]+i)cont=false;
+    if(cont)out.push({r1:mapped[0],c1:m.c1,r2:mapped[mapped.length-1],c2:m.c2});
+    /* Vung gop nhieu hang bi tach khi sap xep/xoa trung: bo gop, giu gia tri. */
+  });
+  sheetMerges=normalizeMerges(out);
+}
+
 /* ---------- Ban 1.6: gia tri so THAT tach khoi dinh dang hien thi ----------
    LOI CU: o go "1.000.000 ₫" hay "50%" la chuoi hien thi; cong thuc tro toi
    o do dung parseFloat nen chi lay duoc 1 (cat o dau cham) hoac 50, tinh sai.
@@ -475,12 +693,39 @@ function parseCellNumber(s){
    O cong thuc: ket qua tinh; o khong cong thuc: so that neu la so, khong thi
    chuoi goc. Ham nay la cho DUY NHAT moi noi can gia tri (cong thuc, bieu do,
    sap xep, xuat file) duoc dung — khong dung parseFloat truc tiep nua. */
-function cellValue(r,c,seen){
-  if(r<0||r>=SHEET_ROWS||c<0||c>=SHEET_COLS)return '';
-  var raw=sheetRaw[r]?(sheetRaw[r][c]||''):'';
-  if(raw.charAt(0)==='=')return evalCell(r,c,seen);
+function lookupSheetEntry(name){
+  var want=String(name==null?'':name).toLowerCase();
+  if(typeof wbSheets!=='undefined'&&wbSheets){
+    for(var i=0;i<wbSheets.length;i++){
+      if(String(wbSheets[i].name||'').toLowerCase()===want)return {raw:wbSheets[i].raw,merges:wbSheets[i].merges||[]};
+    }
+  }
+  return null;
+}
+function sheetEntryForEval(name){
+  /* Trang dang sua luon dung du lieu that trong bien toan cuc (khong dung
+     ban sao cu trong wbSheets); trang khac dung ban da luu luc chuyen trang. */
+  if(String(name==null?'':name).toLowerCase()===String(currentSheetName()).toLowerCase())
+    return {raw:sheetRaw,merges:sheetMerges};
+  return lookupSheetEntry(name);
+}
+function cellValueSheet(sheetName,r,c,seen){
+  var entry=sheetEntryForEval(sheetName);
+  if(!entry||!entry.raw)return '#LỖI';
+  if(r<0||r>=entry.raw.length||c<0)return '';
+  var row=entry.raw[r]||[];
+  if(c>=row.length)return '';
+  var mg=entry.merges||[];
+  for(var i=0;i<mg.length;i++){var m=mg[i];
+    if(r>=m.r1&&r<=m.r2&&c>=m.c1&&c<=m.c2&&!(r===m.r1&&c===m.c1))
+      return cellValueSheet(sheetName,m.r1,m.c1,seen);}
+  var raw=row[c]||'';
+  if(raw.charAt(0)==='=')return evalCellOn(sheetName,r,c,seen);
   var n=parseCellNumber(raw);
   return n==null?raw:n;
+}
+function cellValue(r,c,seen){
+  return cellValueSheet(currentSheetName(),r,c,seen);
 }
 function cellNumericValue(r,c,seen){
   var v=cellValue(r,c,seen);
@@ -489,23 +734,41 @@ function cellNumericValue(r,c,seen){
   return null;
 }
 function formulaErr(msg){var e=new Error(msg);throw e}
-function evalCell(r,c,seen){
+function evalCellOn(sheetName,r,c,seen){
   seen=seen||new Set();
-  var key=r+','+c;
+  var key=String(sheetName==null?'':sheetName).toLowerCase()+'!'+r+','+c;
   if(seen.has(key))return '#LỖI';
-  if(r<0||r>=SHEET_ROWS||c<0||c>=SHEET_COLS)return '';
-  var raw=sheetRaw[r]?(sheetRaw[r][c]||''):'';
+  var entry=sheetEntryForEval(sheetName);
+  if(!entry||!entry.raw)return '#LỖI';
+  if(r<0||r>=entry.raw.length||c<0)return '';
+  var row=entry.raw[r]||[];
+  if(c>=row.length)return '';
+  var mg=entry.merges||[];
+  for(var i2=0;i2<mg.length;i2++){var mm=mg[i2];
+    if(r>=mm.r1&&r<=mm.r2&&c>=mm.c1&&c<=mm.c2&&!(r===mm.r1&&c===mm.c1))
+      return cellValueSheet(sheetName,mm.r1,mm.c1,seen);}
+  var raw=row[c]||'';
   if(raw.charAt(0)!=='=')return raw;
   seen.add(key);
+  var formulaSheet=sheetName;
   var expr=raw.slice(1).trim();
   if(!expr)return raw;
-  /* --- Bo tach token (khong dung eval) --- */
   var toks=[],i=0;
   try{
     while(i<expr.length){
       var ch=expr[i];
       if(ch===' '||ch==='\t'){i++;continue}
       if(ch==='$'){i++;continue}
+      /* Tham chieu lien trang: 'Ten trang'!A1 hoac Sheet2!A1. Ten co dau
+         cach/dau tieng Viet phai dung dang co ngoac don; ten khong dau
+         viet lien duoc dung dang khong ngoac. */
+      if(ch==="'"){
+        var qm=/^'([^']+)'!([A-Za-z]+[0-9]+)/i.exec(expr.slice(i));
+        if(qm){toks.push({t:'sref',sheet:qm[1],ref:qm[2].toUpperCase()});i+=qm[0].length;continue}
+        formulaErr('tok');
+      }
+      var sm=/^([A-Za-z_][A-Za-z0-9_]*)!([A-Za-z]+[0-9]+)/i.exec(expr.slice(i));
+      if(sm){toks.push({t:'sref',sheet:sm[1],ref:sm[2].toUpperCase()});i+=sm[0].length;continue}
       if('+-*/(),;:'.indexOf(ch)>=0){toks.push({t:'op',v:ch});i++;continue}
       if(ch==='<'||ch==='>'){
         if(expr[i+1]==='='){toks.push({t:'op',v:ch+'='});i+=2;continue}
@@ -526,7 +789,7 @@ function evalCell(r,c,seen){
         if(j>=expr.length)formulaErr('str');
         toks.push({t:'str',v:buf});i=j+1;continue;
       }
-      var rm=/^[A-J][1-9][0-9]*/i.exec(expr.slice(i));
+      var rm=/^[A-Z]+[1-9][0-9]*/i.exec(expr.slice(i));
       if(rm){toks.push({t:'ref',v:rm[0].toUpperCase()});i+=rm[0].length;continue}
       var nm=/^(\d+(\.\d+)?|\.\d+)/.exec(expr.slice(i));
       if(nm){toks.push({t:'num',v:parseFloat(nm[0])});i+=nm[0].length;continue}
@@ -536,7 +799,6 @@ function evalCell(r,c,seen){
     }
   }catch(e){return '#LỖI'}
   if(!toks.length)return raw;
-  /* --- Phan tich cu phap thanh cay AST --- */
   var pos=0;
   function pk(){return toks[pos]}
   function isOp(v){var t=pk();return t&&t.t==='op'&&t.v===v}
@@ -589,8 +851,22 @@ function evalCell(r,c,seen){
       }
       return {t:'ref',v:tk.v};
     }
+    if(tk.t==='sref'){
+      pos++;
+      if(isOp(':')){
+        pos++;
+        var tk3=pk();
+        if(!tk3)formulaErr('range');
+        if(tk3.t==='ref'){pos++;return {t:'srange',sheet:tk.sheet,a:tk.ref,b:tk3.v}}
+        if(tk3.t==='sref'){pos++;return {t:'srange',sheet:tk.sheet,a:tk.ref,b:tk3.ref}}
+        formulaErr('range');
+      }
+      return {t:'sref',sheet:tk.sheet,ref:tk.ref};
+    }
     if(tk.t==='ident'){
-      var name=tk.v;pos++;
+      var name=tk.v;
+      if((name==='TRUE'||name==='FALSE')&&!isOp('(')){pos++;return {t:'bool',v:(name==='TRUE')}}
+      pos++;
       if(!isOp('('))formulaErr('ident');
       pos++;
       var args=[];
@@ -606,7 +882,6 @@ function evalCell(r,c,seen){
     }
     formulaErr('tok');
   }
-  /* --- Tinh cay AST; IF tinh luoi (chi tinh nhanh duoc chon) --- */
   function toNum(v){
     if(typeof v==='number')return v;
     if(typeof v==='boolean')return v?1:0;
@@ -622,34 +897,98 @@ function evalCell(r,c,seen){
     if(typeof v==='string')return v.trim().toUpperCase()==='TRUE';
     return !!v;
   }
+  function rangeCells(node){
+    /* Tra ve danh sach {sheet,r,c} cua mot vung (cung trang hoac lien trang). */
+    var sheet, a, b;
+    if(node.t==='range'){sheet=formulaSheet;a=parseRef(node.a);b=parseRef(node.b)}
+    else if(node.t==='srange'){sheet=node.sheet;a=parseRef(node.a);b=parseRef(node.b)}
+    else formulaErr('range');
+    if(!a||!b)formulaErr('range');
+    var out=[];
+    for(var rr=Math.min(a.r,b.r);rr<=Math.max(a.r,b.r);rr++)
+      for(var cc=Math.min(a.c,b.c);cc<=Math.max(a.c,b.c);cc++)
+        out.push({sheet:sheet,r:rr,c:cc});
+    return out;
+  }
   function expandArg(node,s){
-    /* Tra ve danh sach {v,fromRef}: vung/tham chieu thi bo qua o khong phai
-       so (giong Excel); gia tri viet truc tiep thi ep kieu, sai thi loi. */
-    if(node.t==='range'){
-      var a=parseRef(node.a),b=parseRef(node.b);
-      if(!a||!b)formulaErr('range');
+    if(node.t==='range'||node.t==='srange'){
       var out=[];
-      for(var rr=Math.min(a.r,b.r);rr<=Math.max(a.r,b.r);rr++)
-        for(var cc=Math.min(a.c,b.c);cc<=Math.max(a.c,b.c);cc++){
-          var cvv=cellValue(rr,cc,new Set(s));
-          if(typeof cvv==='string'&&cvv.charAt(0)==='#')formulaErr('notnum');
-          out.push({v:cvv,fromRef:true});
-        }
+      rangeCells(node).forEach(function(cell){
+        var cvv=cellValueSheet(cell.sheet,cell.r,cell.c,new Set(s));
+        if(typeof cvv==='string'&&cvv.charAt(0)==='#')formulaErr('notnum');
+        out.push({v:cvv,fromRef:true});
+      });
       return out;
     }
     if(node.t==='ref'){
       var rf=parseRef(node.v);
       if(!rf)formulaErr('ref');
-      var svv=cellValue(rf.r,rf.c,new Set(s));
+      var svv=cellValueSheet(formulaSheet,rf.r,rf.c,new Set(s));
       if(typeof svv==='string'&&svv.charAt(0)==='#')formulaErr('notnum');
       return [{v:svv,fromRef:true}];
     }
+    if(node.t==='sref'){
+      var rf2=parseRef(node.ref);
+      if(!rf2)formulaErr('ref');
+      var svv2=cellValueSheet(node.sheet,rf2.r,rf2.c,new Set(s));
+      if(typeof svv2==='string'&&svv2.charAt(0)==='#')formulaErr('notnum');
+      return [{v:svv2,fromRef:true}];
+    }
     return [{v:evalNode(node,s),fromRef:false}];
+  }
+  var _viCollator=null;
+function cmpTextVi(a,b){
+  try{
+    if(typeof Intl!=='undefined'&&Intl.Collator){
+      if(!_viCollator)_viCollator=new Intl.Collator('vi',{sensitivity:'accent'});
+      if(_viCollator)return _viCollator.compare(String(a),String(b));
+    }
+  }catch(e){}
+  var al=String(a).toLowerCase(),bl=String(b).toLowerCase();
+  return al<bl?-1:(al>bl?1:0);
+}
+function criteriaMatches(cellVal,crit){
+    /* Tieu chi COUNTIF/SUMIF: so, chu (khong phan biet hoa thuong), hoac
+       chuoi so sanh dang ">5", ">=10", "<>An". O rong chi dem khi tieu
+       chi la chuoi rong. */
+    if(cellVal===''||cellVal==null)return crit==='';
+    var critStr=(typeof crit==='string')?crit.trim():null;
+    if(critStr!=null){
+      var cm=/^(>=|<=|<>|>|<|=)(.*)$/.exec(critStr);
+      if(cm){
+        var op=cm[1],operand=cm[2].trim();
+        var on=parseCellNumber(operand);
+        var cn=(typeof cellVal==='number')?cellVal:parseCellNumber(cellVal);
+        if(on!=null&&cn!=null){
+          if(op==='>')return cn>on;if(op==='<')return cn<on;
+          if(op==='>=')return cn>=on;if(op==='<=')return cn<=on;
+          if(op==='=')return Math.abs(cn-on)<1e-9;if(op==='<>')return Math.abs(cn-on)>=1e-9;
+        }
+        var cs=String(cellVal).trim().toLowerCase(),os=operand.toLowerCase();
+        if(op==='=')return cs===os;if(op==='<>')return cs!==os;
+        if(op==='>')return cs>os;if(op==='<')return cs<os;
+        if(op==='>=')return cs>=os;if(op==='<=')return cs<=os;
+        return false;
+      }
+      if(typeof cellVal==='number'){
+        var pn=parseCellNumber(critStr);
+        if(pn!=null)return Math.abs(cellVal-pn)<1e-9;
+      }
+      return String(cellVal).trim().toLowerCase()===critStr.toLowerCase();
+    }
+    if(typeof crit==='number'&&typeof cellVal==='number')return Math.abs(cellVal-crit)<1e-9;
+    if(typeof crit==='number'&&typeof cellVal==='string'){
+      var pn2=parseCellNumber(cellVal);
+      return pn2!=null&&Math.abs(pn2-crit)<1e-9;
+    }
+    if(typeof crit==='boolean')return cellVal===crit;
+    return String(cellVal)===String(crit);
   }
   function evalNode(node,s){
     s=new Set(s);
     if(node.t==='num')return node.v;
     if(node.t==='str')return node.v;
+    if(node.t==='bool')return node.v;
     if(node.t==='pct')return toNum(evalNode(node.v,s))/100;
     if(node.t==='neg')return -toNum(evalNode(node.v,s));
     if(node.t==='bin'){
@@ -673,17 +1012,24 @@ function evalCell(r,c,seen){
       if(node.op==='>=')return cl>=cr;
     }
     if(node.t==='ref'){
-      var rf2=parseRef(node.v);
-      if(!rf2)formulaErr('ref');
-      var vv=cellValue(rf2.r,rf2.c,s);
+      var rf3=parseRef(node.v);
+      if(!rf3)formulaErr('ref');
+      var vv=cellValueSheet(formulaSheet,rf3.r,rf3.c,s);
       if(vv===''||vv==null)return 0;
-      if(typeof vv==='boolean')return vv?1:0;
-      if(typeof vv==='number')return vv;
-      var nn=parseCellNumber(vv);
-      if(nn==null)formulaErr('notnum');
-      return nn;
+      /* Ban 1.7: tham chieu tra ve dung gia tri o (so/chu/boolean) nhu
+         Excel; phep tinh se tu ep kieu qua toNum va bao #LOI neu chu
+         khong phai so. Cu: tham chieu o chu luon #LOI ke ca khi chi
+         can lay chu (vi du =VLOOKUP(A1,...) voi A1 la chu). */
+      return vv;
     }
-    if(node.t==='range')formulaErr('range');
+    if(node.t==='sref'){
+      var rf4=parseRef(node.ref);
+      if(!rf4)formulaErr('ref');
+      var vv2=cellValueSheet(node.sheet,rf4.r,rf4.c,s);
+      if(vv2===''||vv2==null)return 0;
+      return vv2;
+    }
+    if(node.t==='range'||node.t==='srange')formulaErr('range');
     if(node.t==='call'){
       var fn=node.name;
       if(fn==='IF'){
@@ -705,31 +1051,97 @@ function evalCell(r,c,seen){
         if(node.args.length!==1)formulaErr('args');
         return Math.abs(toNum(evalNode(node.args[0],s)));
       }
+      if(fn==='COUNTIF'){
+        if(node.args.length<2)formulaErr('args');
+        var crit=evalNode(node.args[1],s);
+        var cnt=0;
+        rangeCells(node.args[0]).forEach(function(cell){
+          var cv=cellValueSheet(cell.sheet,cell.r,cell.c,new Set(s));
+          if(criteriaMatches(cv,crit))cnt++;
+        });
+        return cnt;
+      }
+      if(fn==='SUMIF'){
+        if(node.args.length<2)formulaErr('args');
+        var crit2=evalNode(node.args[1],s);
+        var rng=rangeCells(node.args[0]);
+        var sumRng=(node.args.length>=3)?rangeCells(node.args[2]):rng;
+        var total=0;
+        rng.forEach(function(cell,idx){
+          var cv2=cellValueSheet(cell.sheet,cell.r,cell.c,new Set(s));
+          if(!criteriaMatches(cv2,crit2))return;
+          var sc=sumRng[Math.min(idx,sumRng.length-1)];
+          if(!sc)return;
+          var sv=cellValueSheet(sc.sheet,sc.r,sc.c,new Set(s));
+          if(typeof sv==='number')total+=sv;
+          else if(typeof sv==='string'){var pn3=parseCellNumber(sv);if(pn3!=null)total+=pn3}
+        });
+        return total;
+      }
       if(fn==='VLOOKUP'){
         if(node.args.length<3)formulaErr('args');
         var lk=evalNode(node.args[0],s);
         var tbl=node.args[1];
-        if(tbl.t!=='range')formulaErr('range');
-        var ta=parseRef(tbl.a),tb=parseRef(tbl.b);
-        if(!ta||!tb)formulaErr('range');
+        if(tbl.t!=='range'&&tbl.t!=='srange')formulaErr('range');
+        var cells=rangeCells(tbl);
+        if(!cells.length)formulaErr('range');
         var colIdx=Math.floor(toNum(evalNode(node.args[2],s)));
-        var rTop=Math.min(ta.r,tb.r),rBot=Math.max(ta.r,tb.r);
-        var cLeft=Math.min(ta.c,tb.c),cRight=Math.max(ta.c,tb.c);
+        var rTop=Math.min.apply(null,cells.map(function(x){return x.r}));
+        var rBot=Math.max.apply(null,cells.map(function(x){return x.r}));
+        var cLeft=Math.min.apply(null,cells.map(function(x){return x.c}));
+        var cRight=Math.max.apply(null,cells.map(function(x){return x.c}));
+        var tblSheet=(tbl.t==='srange')?tbl.sheet:formulaSheet;
         if(colIdx<1||cLeft+colIdx-1>cRight)formulaErr('range');
-        for(var vr=rTop;vr<=rBot;vr++){
-          var first=cellValue(vr,cLeft,new Set(s));
-          var match=false;
-          if(typeof lk==='number'&&typeof first==='number')match=Math.abs(lk-first)<1e-9;
-          else if(typeof lk==='number'&&typeof first==='string')match=parseCellNumber(first)!=null&&Math.abs(lk-parseCellNumber(first))<1e-9;
-          else if(typeof lk==='string'&&typeof first==='number')match=parseCellNumber(lk)!=null&&Math.abs(parseCellNumber(lk)-first)<1e-9;
-          else match=String(lk).trim().toLowerCase()===String(first).trim().toLowerCase();
-          if(match){
-            var got=cellValue(vr,cLeft+colIdx-1,new Set(s));
-            if(got===''||got==null)return 0;
-            return got;
-          }
+        var approx=true;
+        if(node.args.length>=4){
+          var a4=evalNode(node.args[3],s);
+          if(a4===false||a4===0)approx=false;
+          else if(a4===true||a4===1)approx=true;
+          else if(typeof a4==='string')approx=(a4.trim().toUpperCase()==='TRUE');
         }
-        formulaErr('notfound');
+        var bestRow=-1;
+        for(var vr=rTop;vr<=rBot;vr++){
+          var first=cellValueSheet(tblSheet,vr,cLeft,new Set(s));
+          var match=false;
+          if(approx){
+            var lkN=(typeof lk==='number')?lk:parseCellNumber(lk);
+            var fN=(typeof first==='number')?first:parseCellNumber(first);
+            if(lkN!=null&&fN!=null){
+              /* Tim gan dung cho cot so da sap xep tang dan (dung quy
+                 uoc Excel/Calc). */
+              if(Math.abs(fN-lkN)<1e-9){match=true;bestRow=vr;break}
+              if(fN<lkN)bestRow=vr;
+              else break;
+              continue;
+            }
+            if(typeof lk==='string'&&typeof first==='string'){
+              /* Tim gan dung cho cot chu da sap xep theo tieng Viet
+                 (chuan doi chieu LibreOffice Calc): hang cuoi co gia tri
+                 <= gia tri tim; duoi gia tri nho nhat -> khong thay.
+                 Luu y: gan dung chi co nghia khi cot da sap xep; cot
+                 chua sap xep thi ket qua chi la lan quet xac dinh nay,
+                 Calc co the tra khac vi no tim nhi phan. */
+              var cmp=cmpTextVi(String(first).trim(),String(lk).trim());
+              if(cmp===0){bestRow=vr;break}
+              if(cmp<0){bestRow=vr;continue}
+              break;
+            }
+            if(typeof lk==='number'&&typeof first==='number')match=Math.abs(lk-first)<1e-9;
+            else if(typeof lk==='number'&&typeof first==='string')match=parseCellNumber(first)!=null&&Math.abs(lk-parseCellNumber(first))<1e-9;
+            else if(typeof lk==='string'&&typeof first==='number')match=parseCellNumber(lk)!=null&&Math.abs(parseCellNumber(lk)-first)<1e-9;
+            else match=String(lk).trim().toLowerCase()===String(first).trim().toLowerCase();
+          }else{
+            if(typeof lk==='number'&&typeof first==='number')match=Math.abs(lk-first)<1e-9;
+            else if(typeof lk==='number'&&typeof first==='string')match=parseCellNumber(first)!=null&&Math.abs(lk-parseCellNumber(first))<1e-9;
+            else if(typeof lk==='string'&&typeof first==='number')match=parseCellNumber(lk)!=null&&Math.abs(parseCellNumber(lk)-first)<1e-9;
+            else match=String(lk).trim().toLowerCase()===String(first).trim().toLowerCase();
+          }
+          if(match){bestRow=vr;break}
+        }
+        if(bestRow<0)formulaErr('notfound');
+        var got=cellValueSheet(tblSheet,bestRow,cLeft+colIdx-1,new Set(s));
+        if(got===''||got==null)return 0;
+        return got;
       }
       if(fn==='SUM'||fn==='AVERAGE'||fn==='COUNT'||fn==='MAX'||fn==='MIN'){
         var vals=[];
@@ -746,7 +1158,7 @@ function evalCell(r,c,seen){
         });
         if(fn==='SUM')return vals.reduce(function(a,b){return a+b},0);
         if(fn==='COUNT')return vals.length;
-        if(fn==='AVERAGE')return vals.length?vals.reduce(function(a,b){return a+b},0)/vals.length:0;
+        if(fn==='AVERAGE'){if(!vals.length)formulaErr('avg-empty');return vals.reduce(function(a,b){return a+b},0)/vals.length}
         if(fn==='MAX')return vals.length?Math.max.apply(null,vals):0;
         if(fn==='MIN')return vals.length?Math.min.apply(null,vals):0;
       }
@@ -759,9 +1171,14 @@ function evalCell(r,c,seen){
     if(pos!==toks.length)formulaErr('trailing');
     return evalNode(ast,seen);
   }catch(e){
-    if(['div0','notnum','notfound','ref','range'].indexOf(e.message)>=0)return '#LỖI';
-    return raw;
+    /* Ban 1.7: thong nhat loi — chia cho 0, vong tron, khong tim thay,
+       sai cu phap, ham khong co deu ra #LOI, khong hien lai chu cong
+       thuc nhu ban 1.6 nua. */
+    return '#LỖI';
   }
+}
+function evalCell(r,c,seen){
+  return evalCellOn(currentSheetName(),r,c,seen);
 }
 function fmtNumForCell(num,f){
   if(f.num==='money'){
@@ -780,6 +1197,7 @@ function displayCell(r,c){
   /* Ban 1.6: hien thi KHONG lam mat gia tri. O thuong khong dinh dang thi
      hien dung chu nguoi go ("1.000.000" van hien "1.000.000"); chi khi co
      dinh dang tien/%/thap phan moi dich sang so that roi dinh dang lai. */
+  if(isMergeSlave(r,c))return '';
   if(showFormulasFlag)return sheetRaw[r]?(sheetRaw[r][c]||''):'' ;
   var raw=sheetRaw[r]?(sheetRaw[r][c]||''):'';
   var f=cellFmt[cellFmtKey(r,c)]||{};
@@ -806,6 +1224,9 @@ function renderSheet(){
     var hideRow=sheetFilter&&String(sheetRaw[r][sheetFilter.c]||'').toLowerCase().indexOf(sheetFilter.text)<0;
     html+='<tr'+(hideRow?' style="display:none"':'')+'><th>'+(r+1)+'</th>';
     for(var cc=0;cc<SHEET_COLS;cc++){
+      if(isMergeSlave(r,cc))continue;
+      var mgTop=mergeAtTop(r,cc);
+      var spanAttr=mgTop?(' colspan="'+(mgTop.c2-mgTop.c1+1)+'" rowspan="'+(mgTop.r2-mgTop.r1+1)+'"'):'';
       var sel=(selCell.r===r&&selCell.c===cc)?' selected':'';
       var fm=cellFmt[cellFmtKey(r,cc)]||{};
       var st='';
@@ -819,11 +1240,12 @@ function renderSheet(){
       if(fm.valign)st+='vertical-align:'+fm.valign+';';
       var wrapStyle=fm.wrap?'white-space:normal;word-break:break-word;':'';
       var noteMark=fm.note?' ◐':'';
-      html+='<td class="cell'+sel+'" data-r="'+r+'" data-c="'+cc+'" style="'+st+'"><div class="cellval" style="'+wrapStyle+'"'+(fm.note?' title="'+esc(fm.note)+'"':'')+'>'+esc(displayCell(r,cc))+noteMark+'</div></td>';
+      html+='<td class="cell'+sel+'" data-r="'+r+'" data-c="'+cc+'"'+spanAttr+' style="'+st+'"><div class="cellval" style="'+wrapStyle+'"'+(fm.note?' title="'+esc(fm.note)+'"':'')+'>'+esc(displayCell(r,cc))+noteMark+'</div></td>';
     }
     html+='</tr>';
   }
   $('sheetTable').innerHTML=html;
+  renderSheetTabs();
   updateTitleBar();
   $('sheetTable').querySelectorAll('td.cell').forEach(function(td){
     td.addEventListener('click',function(){
@@ -845,12 +1267,13 @@ function editCell(td,r,c){
   inp.addEventListener('blur',commit);
   inp.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();commit()}});
 }
-function newSheet(){currentSheetId=null;sheetLocked=false;freezeTopRow=false;gridOn=true;var gw=$('sheetWrap');if(gw)gw.classList.remove('nogrid');$('sheetName').value='';sheetRaw=Array.from({length:SHEET_ROWS},function(){return Array(SHEET_COLS).fill('')});cellFmt={};dupKeys={};sheetFilter=null;sheetUndo=[];sheetRedo=[];savedSheetSnap=sheetSnapNow();renderSheet();updateStatusBar();}
+function newSheet(){currentSheetId=null;sheetLocked=false;freezeTopRow=false;gridOn=true;var gw=$('sheetWrap');if(gw)gw.classList.remove('nogrid');$('sheetName').value='';sheetRaw=Array.from({length:SHEET_ROWS},function(){return Array(SHEET_COLS).fill('')});cellFmt={};sheetMerges=[];wbSheets=[{name:'Sheet1',raw:sheetRaw,fmt:cellFmt,merges:[]}];activeSheetIndex=0;dupKeys={};sheetFilter=null;sheetUndo=[];sheetRedo=[];savedSheetSnap=sheetSnapNow();renderSheet();updateStatusBar();}
 function saveSheet(silent){
   var name=$('sheetName').value.trim()||('Bảng tính '+(new Date()).toLocaleDateString('vi-VN'));
   if(!currentSheetId)name=uniqueName('sheet',name);
   var sheets=loadJSON('vb_sheets_v1',[]);
-  var rec={id:currentSheetId||uid(),name:name,raw:sheetRaw,fmt:cellFmt,locked:sheetLocked,freeze:freezeTopRow,grid:gridOn,updatedAt:Date.now(),syncStatus:'local'};
+  syncCurrentToWb();
+  var rec={id:currentSheetId||uid(),name:name,raw:sheetRaw,fmt:cellFmt,merges:sheetMerges,sheets:workbookSnapshotSheets(),locked:sheetLocked,freeze:freezeTopRow,grid:gridOn,updatedAt:Date.now(),syncStatus:'local'};
   if(currentSheetId){var s=sheets.find(function(x){return x.id===currentSheetId});if(s){Object.assign(s,rec)}else sheets.unshift(rec)}
   else{currentSheetId=rec.id;sheets.unshift(rec)}
   if(!saveJSON('vb_sheets_v1',sheets)){updateTitleBar();return}
@@ -858,7 +1281,15 @@ function saveSheet(silent){
 }
 function openSheetRec(id){
   var s=loadJSON('vb_sheets_v1',[]).find(function(x){return x.id===id});if(!s)return;
-  currentSheetId=s.id;$('sheetName').value=s.name;sheetRaw=normalizeSheetRaw(s.raw);cellFmt=s.fmt||{};sheetLocked=!!s.locked;freezeTopRow=!!s.freeze;if(s.grid!==undefined)gridOn=s.grid!==false;var gw2=$('sheetWrap');if(gw2){if(gridOn)gw2.classList.remove('nogrid');else gw2.classList.add('nogrid')}var fw=$('sheetWrap');if(fw)fw.classList.toggle('freeze-first',freezeTopRow);savedSheetSnap=sheetSnapNow();renderSheet();gotoTab('sheet');updateStatusBar();
+  currentSheetId=s.id;$('sheetName').value=s.name;
+  if(s.sheets&&s.sheets.length){
+    wbSheets=s.sheets.map(function(sh){return {name:sh.name||'Sheet1',raw:normalizeSheetRaw(sh.raw),fmt:sh.fmt||{},merges:normalizeMerges(sh.merges||[]),locked:!!sh.locked,freeze:!!sh.freeze,grid:sh.grid!==false}});
+    loadSheetFromWb(0);
+  }else{
+    wbSheets=[{name:'Sheet1',raw:normalizeSheetRaw(s.raw),fmt:s.fmt||{},merges:normalizeMerges(s.merges||[]),locked:!!s.locked,freeze:!!s.freeze,grid:s.grid!==false}];
+    loadSheetFromWb(0);
+  }
+  savedSheetSnap=sheetSnapNow();renderSheet();gotoTab('sheet');updateStatusBar();
 }
 function renderSheetList(){
   var el=$('sheetList');if(!el)return;
@@ -910,18 +1341,21 @@ function xlsxFormulaForFile(raw){
   }
   return out;
 }
-function xlsxBlobFromRaw(raw,opts){
-  opts=opts||{};
-  var oldRaw=sheetRaw,oldFmt=cellFmt,oldLock=sheetLocked,oldFreeze=freezeTopRow,oldGrid=gridOn;
-  sheetRaw=normalizeSheetRaw(raw);
-  cellFmt=opts.fmt||cellFmt;
-  sheetLocked=!!(opts.locked!==undefined?opts.locked:oldLock);
-  freezeTopRow=!!(opts.freeze!==undefined?opts.freeze:oldFreeze);
-  gridOn=opts.grid!==undefined?!!opts.grid:oldGrid;
+function xlsxBlobFromSheets(sheetsIn){
+  /* Ban 1.7: xuat workbook nhieu trang. Styles gom chung cho ca workbook
+     (font/to nen/dinh dang so) de chi so s="..." dung chung; moi trang co
+     sheetData + mergeCells + legacyDrawing (ghi chu) rieng. Cong thuc lien
+     trang giu nguyen dang Sheet2!A1 / 'Ten trang'!A1 trong <f>; gia tri
+     tinh san <v> lay tu bo may cong thuc cua app (co ho tro lien trang). */
+  var sheets=(sheetsIn||[]).map(function(sh,i){
+    return {name:sh.name||('Sheet'+(i+1)),raw:normalizeSheetRaw(sh.raw),fmt:sh.fmt||{},
+      merges:normalizeMerges(sh.merges||[]),locked:!!sh.locked,freeze:!!sh.freeze,grid:sh.grid!==false};
+  });
+  if(!sheets.length)sheets=[{name:'Sheet1',raw:normalizeSheetRaw([]),fmt:{},merges:[],locked:false,freeze:false,grid:true}];
+  var oldRaw=sheetRaw,oldFmt=cellFmt,oldMerges=sheetMerges,oldWb=wbSheets,oldActive=activeSheetIndex;
+  var oldLock=sheetLocked,oldFreeze=freezeTopRow,oldGrid=gridOn;
   try{
-    var lastR=0,lastC=0;
-    for(var r=0;r<SHEET_ROWS;r++)for(var c=0;c<SHEET_COLS;c++)if(sheetRaw[r][c]){lastR=Math.max(lastR,r);lastC=Math.max(lastC,c)}
-    /* Gom styles dung that trong vung co du lieu. */
+    wbSheets=sheets;
     var fonts=[{b:false,i:false,u:false,color:null}];
     var fontIdx={};
     var fills=[null,null];
@@ -962,31 +1396,83 @@ function xlsxBlobFromRaw(raw,opts){
       xfs.push({numFmtId:getNumFmtId(f),fontId:getFontId(f),fillId:getFillId(f),align:f.align||null,valign:f.valign||null,wrap:!!f.wrap});
       xfIdx[key]=xfs.length-1;return xfIdx[key];
     }
-    var rows='';
-    for(var rr=0;rr<=lastR;rr++){
-      var rowXml='';
-      for(var cc=0;cc<=lastC;cc++){
-        var vraw=sheetRaw[rr][cc];
-        if(!vraw)continue;
-        var fm=cellFmt[cellFmtKey(rr,cc)]||{};
-        var xfId=getXfId(fm);
-        var sAttr=(xfId>0)?(' s="'+xfId+'"'):'';
-        var ref=cellRef(rr,cc);
-        if(vraw.charAt(0)==='='){
-          var ev=evalCell(rr,cc);
-          var fXml='<f>'+esc(xlsxFormulaForFile(vraw.slice(1)))+'</f>';
-          if(typeof ev==='number')rowXml+='<c r="'+ref+'"'+sAttr+'>'+fXml+'<v>'+ev+'</v></c>';
-          else if(typeof ev==='boolean')rowXml+='<c r="'+ref+'"'+sAttr+'" t="b">'+fXml+'<v>'+(ev?1:0)+'</v></c>';
-          else if(typeof ev==='string'&&ev!==''&&ev.charAt(0)!=='#')rowXml+='<c r="'+ref+'"'+sAttr+'" t="str">'+fXml+'<v>'+esc(ev)+'</v></c>';
-          else rowXml+='<c r="'+ref+'"'+sAttr+'">'+fXml+'</c>';
-        }else{
-          var num=parseCellNumber(vraw);
-          if(num!=null)rowXml+='<c r="'+ref+'"'+sAttr+'><v>'+num+'</v></c>';
-          else rowXml+='<c r="'+ref+'"'+sAttr+'" t="inlineStr"><is><t xml:space="preserve">'+esc(vraw)+'</t></is></c>';
+    function sheetRowsXml(sh){
+      var lastR=0,lastC=0;
+      for(var r=0;r<SHEET_ROWS;r++)for(var c=0;c<SHEET_COLS;c++)if(sh.raw[r][c]){lastR=Math.max(lastR,r);lastC=Math.max(lastC,c)}
+      var rows='';
+      for(var rr=0;rr<=lastR;rr++){
+        var rowXml='';
+        for(var cc=0;cc<=lastC;cc++){
+          var vraw=sh.raw[rr][cc];
+          if(!vraw)continue;
+          var fm=sh.fmt[cellFmtKey(rr,cc)]||{};
+          var xfId=getXfId(fm);
+          var sAttr=(xfId>0)?(' s="'+xfId+'"'):'';
+          var ref=cellRef(rr,cc);
+          if(vraw.charAt(0)==='='){
+            var ev=evalCell(rr,cc);
+            var fXml='<f>'+esc(xlsxFormulaForFile(vraw.slice(1)))+'</f>';
+            if(typeof ev==='number')rowXml+='<c r="'+ref+'"'+sAttr+'>'+fXml+'<v>'+ev+'</v></c>';
+            else if(typeof ev==='boolean')rowXml+='<c r="'+ref+'"'+sAttr+'" t="b">'+fXml+'<v>'+(ev?1:0)+'</v></c>';
+            else if(typeof ev==='string'&&ev!==''&&ev.charAt(0)!=='#')rowXml+='<c r="'+ref+'"'+sAttr+'" t="str">'+fXml+'<v>'+esc(ev)+'</v></c>';
+            else rowXml+='<c r="'+ref+'"'+sAttr+'">'+fXml+'</c>';
+          }else{
+            var num=parseCellNumber(vraw);
+            if(num!=null)rowXml+='<c r="'+ref+'"'+sAttr+'><v>'+num+'</v></c>';
+            else rowXml+='<c r="'+ref+'"'+sAttr+'" t="inlineStr"><is><t xml:space="preserve">'+esc(vraw)+'</t></is></c>';
+          }
         }
+        if(rowXml)rows+='<row r="'+(rr+1)+'">'+rowXml+'</row>';
       }
-      if(rowXml)rows+='<row r="'+(rr+1)+'">'+rowXml+'</row>';
+      return {rows:rows,lastR:lastR,lastC:lastC};
     }
+    var sheetXmls=[],commentParts=[];
+    sheets.forEach(function(sh,si){
+      activeSheetIndex=si;
+      sheetRaw=sh.raw;cellFmt=sh.fmt;sheetMerges=sh.merges;
+      sheetLocked=sh.locked;freezeTopRow=sh.freeze;gridOn=sh.grid;
+      var built=sheetRowsXml(sh);
+      var views='<sheetViews><sheetView workbookViewId="0" showGridLines="'+(gridOn?'1':'0')+'">';
+      if(freezeTopRow)views+='<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/>';
+      else views+='<selection activeCell="A1" sqref="A1"/>';
+      views+='</sheetView></sheetViews>';
+      var prot=sheetLocked?'<sheetProtection sheet="1" objects="1" scenarios="1"/>':'';
+      var mergeXml='';
+      if(sh.merges.length){
+        mergeXml='<mergeCells count="'+sh.merges.length+'">'+sh.merges.map(function(m){
+          return '<mergeCell ref="'+cellRef(m.r1,m.c1)+':'+cellRef(m.r2,m.c2)+'"/>';
+        }).join('')+'</mergeCells>';
+      }
+      /* Ghi chu o dang legacy comments (Excel/LibreOffice hien duoc): moi
+         o co fmt.note thanh 1 comment + 1 hinh ve dinh vi trong drawing. */
+      var notes=[];
+      Object.keys(sh.fmt).forEach(function(k){
+        var f=sh.fmt[k];
+        if(f&&f.note){
+          var pp=k.split(',');
+          notes.push({r:+pp[0],c:+pp[1],text:String(f.note)});
+        }
+      });
+      notes.sort(function(a,b){return (a.r-b.r)||(a.c-b.c)});
+      var legacyXml='';
+      var cmt=null;
+      if(notes.length){
+        legacyXml='<legacyDrawing r:id="rIdDraw"/>';
+        var cmtList=notes.map(function(n){
+          return '<comment ref="'+cellRef(n.r,n.c)+'" authorId="0"><text><t xml:space="preserve">'+esc(n.text)+'</t></text></comment>';
+        }).join('');
+        var commentsXml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><comments xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><authors><author>Văn phòng của Bùi</author></authors><commentList>'+cmtList+'</commentList></comments>';
+        var anchors=notes.map(function(n,ni){
+          return '<xdr:twoCellAnchor editAs="oneCell"><xdr:from><xdr:col>'+n.c+'</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>'+n.r+'</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>'+(n.c+2)+'</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>'+(n.r+2)+'</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to><xdr:sp><xdr:nvSpPr><xdr:cNvPr id="'+(ni+1)+'" name="Ghi chú '+(ni+1)+'"/><xdr:cNvSpPr/></xdr:nvSpPr><xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="FFFFE1"/></a:solidFill><a:ln><a:solidFill><a:srgbClr val="000000"/></a:solidFill></a:ln></xdr:spPr><xdr:clientData/></xdr:sp></xdr:twoCellAnchor>';
+        }).join('');
+        var drawingXml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'+anchors+'</xdr:wsDr>';
+        var relsXml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdCmt" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="../comments'+(si+1)+'.xml"/><Relationship Id="rIdDraw" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing'+(si+1)+'.xml"/></Relationships>';
+        cmt={commentsXml:commentsXml,drawingXml:drawingXml,relsXml:relsXml};
+      }
+      commentParts.push(cmt);
+      var dim='A1:'+cellRef(built.lastR,built.lastC);
+      sheetXmls.push('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><dimension ref="'+dim+'"/>'+views+'<sheetData>'+built.rows+'</sheetData>'+prot+mergeXml+legacyXml+'</worksheet>');
+    });
     var fontsXml=fonts.map(function(fn){
       var x='<font><sz val="11"/><name val="Carlito"/>';
       if(fn.b)x+='<b/>';if(fn.i)x+='<i/>';if(fn.u)x+='<u/>';
@@ -1022,25 +1508,51 @@ function xlsxBlobFromRaw(raw,opts){
       +'<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
       +'<cellXfs count="'+xfs.length+'">'+xfsXml+'</cellXfs>'
       +'<cellStyles><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
-    var views='<sheetViews><sheetView workbookViewId="0" showGridLines="'+(gridOn?'1':'0')+'">';
-    if(freezeTopRow)views+='<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/>';
-    else views+='<selection activeCell="A1" sqref="A1"/>';
-    views+='</sheetView></sheetViews>';
-    var prot=sheetLocked?'<sheetProtection sheet="1" objects="1" scenarios="1"/>':'';
-    var dim='A1:'+cellRef(lastR,lastC);
-    return zipStored([
-      {name:'[Content_Types].xml',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'},
+    var sheetsXml=sheets.map(function(sh,si){
+      return '<sheet name="'+esc(sh.name)+'" sheetId="'+(si+1)+'" r:id="rIdS'+(si+1)+'"/>';
+    }).join('');
+    var wbRels=sheets.map(function(sh,si){
+      return '<Relationship Id="rIdS'+(si+1)+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet'+(si+1)+'.xml"/>';
+    }).join('')+'<Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>';
+    var typesExtra=sheets.map(function(sh,si){
+      return '<Override PartName="/xl/worksheets/sheet'+(si+1)+'.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
+    }).join('');
+    commentParts.forEach(function(cmt,si){
+      if(!cmt)return;
+      typesExtra+='<Override PartName="/xl/comments'+(si+1)+'.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml"/>'
+        +'<Override PartName="/xl/drawings/drawing'+(si+1)+'.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.drawing+xml"/>';
+    });
+    var entries=[
+      {name:'[Content_Types].xml',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>'+typesExtra+'<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'},
       {name:'_rels/.rels',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'},
-      {name:'xl/workbook.xml',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheets><sheet name="Sheet1" sheetId="1" r:id="rId1" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/></sheets></workbook>'},
-      {name:'xl/_rels/workbook.xml.rels',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'},
-      {name:'xl/styles.xml',data:stylesXml},
-      {name:'xl/worksheets/sheet1.xml',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="'+dim+'"/>'+views+'<sheetData>'+rows+'</sheetData>'+prot+'</worksheet>'}
-    ]);
-  }finally{sheetRaw=oldRaw;cellFmt=oldFmt;sheetLocked=oldLock;freezeTopRow=oldFreeze;gridOn=oldGrid}
+      {name:'xl/workbook.xml',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>'+sheetsXml+'</sheets></workbook>'},
+      {name:'xl/_rels/workbook.xml.rels',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+wbRels+'</Relationships>'},
+      {name:'xl/styles.xml',data:stylesXml}
+    ];
+    sheetXmls.forEach(function(xml,si){
+      entries.push({name:'xl/worksheets/sheet'+(si+1)+'.xml',data:xml});
+      if(commentParts[si]){
+        entries.push({name:'xl/worksheets/_rels/sheet'+(si+1)+'.xml.rels',data:commentParts[si].relsXml});
+        entries.push({name:'xl/comments'+(si+1)+'.xml',data:commentParts[si].commentsXml});
+        entries.push({name:'xl/drawings/drawing'+(si+1)+'.xml',data:commentParts[si].drawingXml});
+      }
+    });
+    return zipStored(entries);
+  }finally{
+    sheetRaw=oldRaw;cellFmt=oldFmt;sheetMerges=oldMerges;wbSheets=oldWb;activeSheetIndex=oldActive;
+    sheetLocked=oldLock;freezeTopRow=oldFreeze;gridOn=oldGrid;
+  }
+}
+function xlsxBlobFromRaw(raw,opts){
+  opts=opts||{};
+  return xlsxBlobFromSheets([{name:'Sheet1',raw:raw,fmt:opts.fmt||cellFmt,merges:opts.merges||sheetMerges,
+    locked:opts.locked!==undefined?opts.locked:sheetLocked,
+    freeze:opts.freeze!==undefined?opts.freeze:freezeTopRow,
+    grid:opts.grid!==undefined?opts.grid:gridOn}]);
 }
 function exportXlsx(){
   if(!confirmExportWarnings(exportWarnings('excel')))return;
-  downloadBlob(xlsxBlobFromRaw(sheetRaw,{fmt:cellFmt,locked:sheetLocked,freeze:freezeTopRow,grid:gridOn}),($('sheetName').value.trim()||'bang-tinh')+'.xlsx');
+  downloadBlob(xlsxBlobFromSheets(workbookSnapshotSheets()),($('sheetName').value.trim()||'bang-tinh')+'.xlsx');
 }
 /* ---------- PDF: xem trang, chú thích bằng ngón tay, chụm phóng to ---------- */
 var pdfDoc=null,pdfFileName='',pdfPageNum=1,pdfScale=1.5,pdfBaseScale=1.5;
@@ -1643,21 +2155,25 @@ $('importFile').addEventListener('change',function(){
           media[k]='data:'+mime+';base64,'+bytesToBase64(entries[k]);
         }
       });
-      var parsed=parseDocxXmlToHtml(docXml,relsXml,media,numXml);
+      var partByType=function(keyword){var re=new RegExp('<Relationship[^>]*Type="[^"]*'+keyword+'[^"]*"[^>]*Target="([^"]+)"');var mm=re.exec(relsXml||'');if(!mm)return '';var t=mm[1].replace(/^\/+/, '');if(t.indexOf('word/')!==0)t='word/'+t;return t;};
+      var hdrPath=partByType('header'),ftrPath=partByType('footer'),cmtPath=partByType('comments');
+      var parsed=parseDocxXmlToHtml(docXml,relsXml,media,numXml,{headerXml:zipEntryText(entries[hdrPath]||''),footerXml:zipEntryText(entries[ftrPath]||''),commentsXml:zipEntryText(entries[cmtPath]||'')});
       addImportedDoc(f.name.replace(/\.docx$/i,''),parsed.html,parsed.bg);
-      $('importStatus').textContent='Đã nhập docx: giữ tiêu đề, định dạng chữ, bảng, ảnh, danh sách, theo dõi thay đổi. Đầu trang/chân trang, ghi chú Word thật, mục lục tự động không nhập được.';
+      $('importStatus').textContent='Đã nhập docx: giữ tiêu đề, định dạng chữ, bảng, ảnh, danh sách, theo dõi thay đổi, đầu trang/chân trang, ghi chú Word, mục lục (dạng trường, quét lại khi xuất).';
     }).catch(function(e){
       $('importStatus').textContent='Nhập docx chưa xong: '+e.message+' — file có thể không phải docx chuẩn.';
     });
   }else if(lower.endsWith('.xlsx')){
     f.arrayBuffer().then(unzipAll).then(function(entries){
-      var parsed=parseXlsxToSheet(entries);
+      var parsedWb=parseXlsxToWorkbook(entries);
       newSheet();
-      sheetRaw=parsed.raw;cellFmt=parsed.fmt;
+      wbSheets=parsedWb.sheets.map(function(sh){return {name:sh.name,raw:sh.raw,fmt:sh.fmt,merges:sh.merges||[],locked:false,freeze:false,grid:true}});
+      if(!wbSheets.length)wbSheets=[{name:'Sheet1',raw:normalizeSheetRaw([]),fmt:{},merges:[],locked:false,freeze:false,grid:true}];
+      loadSheetFromWb(0);
       $('sheetName').value=f.name.replace(/\.xlsx$/i,'');
       renderSheet();gotoTab('sheet');
-      $('importStatus').textContent='Đã nhập XLSX: '+parsed.used+' ô có nội dung từ trang tính đầu tiên (giữ công thức + định dạng cơ bản).'
-        +(parsed.skipped?(' Bỏ qua '+parsed.skipped+' ô ngoài lưới 10 cột × 30 hàng.'): '')
+      $('importStatus').textContent='Đã nhập XLSX: '+parsedWb.sheets.length+' trang tính, '+parsedWb.totalUsed+' ô có nội dung (giữ công thức + định dạng cơ bản + gộp ô + ghi chú ô).'
+        +(parsedWb.totalSkipped?(' Bỏ qua '+parsedWb.totalSkipped+' ô ngoài lưới 26 cột × 100 hàng.'): '')
         +' Bấm “Lưu vào máy” để giữ lại.';
     }).catch(function(e){
       $('importStatus').textContent='Nhập xlsx chưa xong: '+e.message;
@@ -1668,7 +2184,7 @@ $('importFile').addEventListener('change',function(){
       deckSlides=parsed.slides;deckSize=parsed.size;deckTransition='none';deckLocked=false;currentDeckId=null;currentSlide=0;
       $('deckName').value=f.name.replace(/\.pptx$/i,'');
       renderSlideEditor();gotoTab('slides');
-      $('importStatus').textContent='Đã nhập PPTX: '+parsed.slides.length+' slide theo đúng thứ tự, giữ tiêu đề, nội dung, ảnh đầu mỗi slide, slide ẩn. Biểu đồ, bảng, hình dạng, ghi chú, hiệu ứng không nhập được. Bấm “Lưu vào máy” để giữ lại.';
+      $('importStatus').textContent='Đã nhập PPTX: '+parsed.slides.length+' slide theo đúng thứ tự, giữ tiêu đề, nội dung, mọi ảnh mỗi slide, bảng đầu mỗi slide, slide ẩn. Biểu đồ, hình dạng, ghi chú, hiệu ứng không nhập được. Bấm “Lưu vào máy” để giữ lại.';
     }).catch(function(e){
       $('importStatus').textContent='Nhập pptx chưa xong: '+e.message;
     });
@@ -1677,28 +2193,14 @@ $('importFile').addEventListener('change',function(){
     gotoTab('pdf');
   }else{$('importStatus').textContent='Định dạng chưa hỗ trợ nhập: chỉ txt, docx, xlsx, pptx, csv, pdf.'}
 });
-/* Ban 1.6: nhap xlsx (truoc day chua nhap duoc). Giu cong thuc (ghi lai
-   dang =... de app tinh tiep), gia tri so, chu; dinh dang co ban: dam/
-   nghieng/gach chan/mau chu/to nen/tien/%/thap phan/can le/xuong dong.
-   Gioi han that: chi nhap trang tinh dau tien, toi da 10 cot (A-J) x 30
-   hang cua luoi app; nhieu trang tinh, hop nhat o, bieu do khong nhap duoc. */
-function parseXlsxToSheet(entries){
-  function relsMap(xml){
-    var m={};var re=/<Relationship[^>]*Id="([^"]+)"[^>]*Target="([^"]+)"/g;var mm;
-    while((mm=re.exec(xml)))m[mm[1]]=mm[2];
-    return m;
-  }
-  function normTarget(t,base){
-    if(!t)return '';
-    t=t.replace(/^\/+/,'');
-    if(t.indexOf('xl/')===0)return t;
-    return base+t;
-  }
-  var wbRels=relsMap(zipEntryText(entries['xl/_rels/workbook.xml.rels']||''));
-  var wbXml=zipEntryText(entries['xl/workbook.xml']||'');
-  var sheetPath='xl/worksheets/sheet1.xml';var sheetName='Sheet1';
-  var sm=/<sheet[^>]*name="([^"]+)"[^>]*r:id="([^"]+)"/.exec(wbXml);
-  if(sm){sheetName=xmlUnesc(sm[1]);sheetPath=normTarget(wbRels[sm[2]]||'worksheets/sheet1.xml','xl/')}
+/* Ban 1.7: nhap xlsx NHIEU TRANG (1.6 chi lay trang dau, toi da 10x30).
+   Giu: cong thuc (ghi lai dang =...), gia tri so, chu; dinh dang co ban
+   (dam/nghieng/gach chan/mau chu/to nen/tien/%/thap phan/can le/xuong
+   dong); gop o (mergeCell); ghi chu o (comments legacy). Luoi app nay la
+   26 cot (A-Z) x 100 hang; o ngoai luoi van dem vao skipped. Bieu do
+   khong nhap duoc. Dinh dang nhap vao duoc sao chep (khong dung chung
+   doi tuong) de sua 1 o khong lam lan sang o khac cung kieu. */
+function parseXlsxSharedAndStyles(entries){
   var shared=[];
   var ssXml=zipEntryText(entries['xl/sharedStrings.xml']||'');
   if(ssXml){
@@ -1771,6 +2273,9 @@ function parseXlsxToSheet(entries){
       xfs.push(f);
     }
   }
+  return {shared:shared,xfs:xfs};
+}
+function parseXlsxOneSheet(entries,sheetPath,shared,xfs){
   var raw=Array.from({length:SHEET_ROWS},function(){return Array(SHEET_COLS).fill('')});
   var fmt={};var skipped=0,used=0;
   var shXml=zipEntryText(entries[sheetPath]||'');
@@ -1799,18 +2304,97 @@ function parseXlsxToSheet(entries){
     if(val!=='')used++;
     raw[rf.r][rf.c]=val;
     var sM=/s="(\d+)"/.exec(attrs);
-    if(sM&&xfs[+sM[1]]&&Object.keys(xfs[+sM[1]]).length)fmt[rf.r+','+rf.c]=xfs[+sM[1]];
+    if(sM&&xfs[+sM[1]]&&Object.keys(xfs[+sM[1]]).length)fmt[rf.r+','+rf.c]=Object.assign({},xfs[+sM[1]]);
   }
-  return {raw:raw,fmt:fmt,sheetName:sheetName,used:used,skipped:skipped};
+  var merges=[];
+  var mgRe=/<mergeCell[^>]*ref="([^"]+)"/g;var mgM;
+  while((mgM=mgRe.exec(shXml))){
+    var parts=mgM[1].split(':');
+    var a=parseRef(parts[0]||''),b=parts.length>1?parseRef(parts[1]):a;
+    if(a&&b)merges.push({r1:Math.min(a.r,b.r),c1:Math.min(a.c,b.c),r2:Math.max(a.r,b.r),c2:Math.max(a.c,b.c)});
+  }
+  merges=normalizeMerges(merges);
+  /* Ghi chu o: tim file comments qua rels cua trang tinh nay. */
+  try{
+    var relsPath=sheetPath.replace('xl/worksheets/','xl/worksheets/_rels/')+'.rels';
+    var relsXml=zipEntryText(entries[relsPath]||'');
+    var cmtTarget='';
+    var relTagRe=/<Relationship\b[^>]*>/g;var relTag;
+    while((relTag=relTagRe.exec(relsXml))){
+      if(relTag[0].indexOf('comments')>=0){
+        var tgM=/Target="([^"]+)"/.exec(relTag[0]);
+        if(tgM)cmtTarget=tgM[1];
+        break;
+      }
+    }
+    if(cmtTarget){
+      var ct=cmtTarget.replace(/^\.\.\//,'').replace(/^\/+/,'');
+      if(ct.indexOf('xl/')!==0)ct='xl/'+ct;
+      var cmtXml=zipEntryText(entries[ct]||'');
+      var cmRe=/<comment\b[^>]*ref="([^"]+)"[^>]*>([\s\S]*?)<\/comment>/g;var cmM;
+      while((cmM=cmRe.exec(cmtXml))){
+        var rf2=parseRef(cmM[1]);
+        if(!rf2||rf2.r>=SHEET_ROWS||rf2.c>=SHEET_COLS)continue;
+        var txt='';
+        var tRe3=/<t[^>]*>([^<]*)<\/t>/g;var tM3;
+        while((tM3=tRe3.exec(cmM[2])))txt+=xmlUnesc(tM3[1]);
+        if(!txt)continue;
+        var key=rf2.r+','+rf2.c;
+        fmt[key]=Object.assign({},fmt[key]||{});
+        fmt[key].note=txt;
+      }
+    }
+  }catch(e){}
+  return {raw:raw,fmt:fmt,merges:merges,used:used,skipped:skipped};
 }
-/* Ban 1.6: nhap docx GIU dinh dang (cu: chi lay chu tran).
+function parseXlsxToWorkbook(entries){
+  function relsMap(xml){
+    var m={};var re=/<Relationship[^>]*Id="([^"]+)"[^>]*Target="([^"]+)"/g;var mm;
+    while((mm=re.exec(xml)))m[mm[1]]=mm[2];
+    return m;
+  }
+  function normTarget(t,base){
+    if(!t)return '';
+    t=t.replace(/^\/+/,'');
+    if(t.indexOf('xl/')===0)return t;
+    return base+t;
+  }
+  var wbRels=relsMap(zipEntryText(entries['xl/_rels/workbook.xml.rels']||''));
+  var wbXml=zipEntryText(entries['xl/workbook.xml']||'');
+  var list=[];
+  var tagRe=/<sheet\b[^>]*>/g;var tagM;
+  while((tagM=tagRe.exec(wbXml))){
+    var nm=/name="([^"]+)"/.exec(tagM[0]);
+    var rid=/r:id="([^"]+)"/.exec(tagM[0]);
+    if(nm)list.push({name:xmlUnesc(nm[1]),path:rid?normTarget(wbRels[rid[1]]||'worksheets/sheet1.xml','xl/'):'xl/worksheets/sheet1.xml'});
+  }
+  if(!list.length)list=[{name:'Sheet1',path:'xl/worksheets/sheet1.xml'}];
+  var sd=parseXlsxSharedAndStyles(entries);
+  var sheets=list.map(function(it){
+    var one=parseXlsxOneSheet(entries,it.path,sd.shared,sd.xfs);
+    return {name:it.name,raw:one.raw,fmt:one.fmt,merges:one.merges,used:one.used,skipped:one.skipped};
+  });
+  var totalUsed=0,totalSkipped=0;
+  sheets.forEach(function(sh){totalUsed+=sh.used;totalSkipped+=sh.skipped});
+  return {sheets:sheets,totalUsed:totalUsed,totalSkipped:totalSkipped};
+}
+function parseXlsxToSheet(entries){
+  var wb=parseXlsxToWorkbook(entries);
+  var f=wb.sheets[0]||{raw:Array.from({length:SHEET_ROWS},function(){return Array(SHEET_COLS).fill('')}),fmt:{},name:'Sheet1',used:0,skipped:0};
+  return {raw:f.raw,fmt:f.fmt,sheetName:f.name,used:f.used,skipped:f.skipped};
+}
+/* Ban 1.7: nhap docx GIU dinh dang + dau/chan trang + ghi chu + muc luc.
    Giu: tieu de Heading1-3, dam/nghieng/gach chan/gach ngang, mau chu,
    co chu, font, to sang, thu le, vien doan, bang, anh (qua media + rels),
    danh sach gach dau dong/danh so (qua numbering.xml), theo doi thay doi
-   (w:ins/w:del thanh the ins/del cua app), lien ket, mau nen trang.
-   Khong nhap duoc: dau trang/chan trang, ghi chu Word that (comment),
-   muc luc tu dong (chi doc duoc chu hien co), kieu doan phuc tap. */
-function parseDocxXmlToHtml(docXml,relsXml,mediaByName,numberingXml){
+   (w:ins/w:del thanh the ins/del cua app), lien ket, mau nen trang,
+   dau trang/chan trang (thanh div doc-header/doc-footer), ghi chu Word
+   that (thanh doan comment-para), muc luc truong TOC (thanh div doc-toc
+   voi cac muc da luu san; xuat lai se quet lai tu tieu de).
+   Khong nhap duoc: kieu doan phuc tap; anh trong dau/chan trang co the
+   khong dung anh goc vi rel anh cua header/footer khac rel cua tai lieu. */
+function parseDocxXmlToHtml(docXml,relsXml,mediaByName,numberingXml,extra){
+  extra=extra||{};
   mediaByName=mediaByName||{};
   var rels={};
   var relRe=/<Relationship[^>]*Id="([^"]+)"[^>]*Target="([^"]+)"/g;var relM;
@@ -1933,13 +2517,58 @@ function parseDocxXmlToHtml(docXml,relsXml,mediaByName,numberingXml){
     if(p.border)style+='border:1px solid #999;';
     return '<'+tag+(style?' style="'+style+'"':'')+'>'+(p.runs||'<br>')+'</'+tag+'>';
   }
+  /* Ban 1.7: ghi chu that (comments.xml) thanh comment-para; dau/chan
+     trang (header/footer parts) thanh div doc-header/doc-footer de xuat
+     lai that; muc luc truong TOC thanh div doc-toc. */
+  var commentMap={};
+  if(extra.commentsXml){
+    var cmRe2=/<w:comment\b[^>]*w:id="(\d+)"[^>]*>([\s\S]*?)<\/w:comment>/g;var cmM2;
+    while((cmM2=cmRe2.exec(extra.commentsXml))){
+      var ctext='';
+      var ctRe=/<w:t[^>]*>([^<]*)<\/w:t>/g;var ctM;
+      while((ctM=ctRe.exec(cmM2[2])))ctext+=xmlUnesc(ctM[1]);
+      commentMap[cmM2[1]]=ctext;
+    }
+  }
+  function headerFooterHtml(partXml,cls){
+    if(!partXml)return '';
+    var texts=[];
+    var hpRe=/<w:p(?:\s[^>]*)?>([\s\S]*?)<\/w:p>/g;var hpM;
+    while((hpM=hpRe.exec(partXml))){
+      var pp=paraObj(hpM[0]);
+      var tx=(pp.runs||'').replace(/<[^>]*>/g,'').trim();
+      if(tx)texts.push(tx);
+    }
+    if(!texts.length)return '';
+    return '<div class="'+cls+'">'+texts.join(' ')+'</div>';
+  }
+  var headerHtml=headerFooterHtml(extra.headerXml||'','doc-header');
+  var footerHtml=headerFooterHtml(extra.footerXml||'','doc-footer');
   var bodyM=/<w:body>([\s\S]*)<\/w:body>/.exec(docXml||'');
   var body=bodyM?bodyM[1]:(docXml||'');
   var html='';var listKind=null;
-  function flushList(){if(listKind){html+='</'+listKind+'>';listKind=null}}
+  var commentQueue=[];
+  function flushList(){if(listKind){html+='</'+listKind+'>';listKind=null}if(commentQueue.length){html+=commentQueue.join('');commentQueue=[]}}
+  var tocMode=0,tocEntries=[];
   var topRe=/<w:tbl>[\s\S]*?<\/w:tbl>|<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g;var topM;
   while((topM=topRe.exec(body))){
     var chunk=topM[0];
+    var isBegin=/fldCharType="begin"/.test(chunk);
+    var isSep=/fldCharType="separate"/.test(chunk);
+    var isEnd=/fldCharType="end"/.test(chunk);
+    if(tocMode===1){
+      if(isEnd){flushList();html+='<div class="doc-toc"><h2>Mục lục</h2></div>';tocMode=0;}
+      else if(isSep){tocMode=2;tocEntries=[];}
+      continue;
+    }
+    if(tocMode===2){
+      if(isEnd){flushList();html+='<div class="doc-toc"><h2>Mục lục</h2>'+tocEntries.join('')+'</div>';tocMode=0;continue;}
+      if(chunk.indexOf('<w:tbl>')===0)continue;
+      var ep=paraObj(chunk);
+      if((ep.runs||'').replace(/<[^>]*>/g,'').trim())tocEntries.push('<p>'+ep.runs+'</p>');
+      continue;
+    }
+    if(isBegin){tocMode=1;continue;}
     if(chunk.indexOf('<w:tbl>')===0){
       flushList();
       var rowsHtml='';
@@ -1965,17 +2594,30 @@ function parseDocxXmlToHtml(docXml,relsXml,mediaByName,numberingXml){
       if(rowsHtml)html+='<table><tbody>'+rowsHtml+'</tbody></table>';
     }else{
       var p=paraObj(chunk);
+      var cmtHtmls=[];
+      var crRe=/commentReference\b[^>]*w:id="(\d+)"/g;var crM;
+      while((crM=crRe.exec(chunk))){
+        var ct=commentMap[crM[1]];
+        if(ct===undefined)continue;
+        var label=(ct.indexOf('Nhận xét:')===0||ct.indexOf('Chú thích:')===0)?ct:('Nhận xét: '+ct);
+        cmtHtmls.push('<p class="comment-para">'+esc(label)+'</p>');
+      }
       if(p.bullet){
         var want=(p.bullet==='bullet')?'ul':'ol';
         if(listKind!==want){flushList();html+='<'+want+'>';listKind=want}
         html+='<li>'+(p.runs||'<br>')+'</li>';
+        if(cmtHtmls.length)commentQueue=commentQueue.concat(cmtHtmls);
       }else{
         flushList();
-        html+=paraHtml(p);
+        var hasText=(p.runs||'').replace(/<[^>]*>/g,'').trim()!=='';
+        if(cmtHtmls.length&&!hasText&&!p.heading){html+=cmtHtmls.join('');}
+        else{html+=paraHtml(p);if(cmtHtmls.length)html+=cmtHtmls.join('');}
       }
     }
   }
   flushList();
+  if(headerHtml)html=headerHtml+html;
+  if(footerHtml)html+=footerHtml;
   var bg='';
   var bgM=/<w:background[^>]*w:color="([0-9A-Fa-f]+)"/.exec(docXml||'');
   if(bgM)bg='#'+bgM[1];
@@ -1984,7 +2626,7 @@ function parseDocxXmlToHtml(docXml,relsXml,mediaByName,numberingXml){
 function addImportedDoc(name,html,bg){
   var docs=loadJSON('vb_docs_v1',[]);
   var rec={id:uid(),name:name,html:html,bg:bg||'',updatedAt:Date.now(),syncStatus:'local'};
-  docs.unshift(rec);saveJSON('vb_docs_v1',docs);currentDocId=rec.id;$('docName').value=name;$('editor').innerHTML=html;setPageBg(bg||'');savedDocSnap=docSnapNow();
+  docs.unshift(rec);saveJSON('vb_docs_v1',docs);currentDocId=rec.id;$('docName').value=name;$('editor').innerHTML=html;setPageBg(bg||'');savedDocSnap=docSnapNow();try{docHistoryReset()}catch(e){}
   renderDocList();renderFileList();$('importStatus').textContent='Đã nhập: '+name+'.';gotoTab('editor');
 }
 
@@ -2071,7 +2713,8 @@ function fileBlobForSync(kind,id){
   }
   if(kind==='sheet'){
     var s=loadJSON('vb_sheets_v1',[]).find(function(x){return x.id===id});if(!s)return null;
-    return {name:s.name+'.xlsx',blob:xlsxBlobFromRaw(s.raw||[],{fmt:s.fmt||{},locked:!!s.locked,freeze:!!s.freeze,grid:s.grid!==false})};
+    if(s.sheets&&s.sheets.length)return {name:s.name+'.xlsx',blob:xlsxBlobFromSheets(s.sheets)};
+    return {name:s.name+'.xlsx',blob:xlsxBlobFromRaw(s.raw||[],{fmt:s.fmt||{},merges:s.merges||[],locked:!!s.locked,freeze:!!s.freeze,grid:s.grid!==false})};
   }
   var g=loadJSON('vb_generated_pdfs_v1',[]).find(function(x){return x.id===id});if(!g)return null;
   return getBlob(g.blobId).then(function(b){return b?{name:g.name,blob:b}:null});
@@ -2154,7 +2797,26 @@ function downloadOneDriveFile(url,name){
    (1 trong 5 font đã kiểm chứng) + dự phòng hệ thống; không thêm font mới. */
 var currentDeckId=null;
 var deckSlides=[{title:'',bullets:[''],image:null,imageW:0,imageH:0}];
-function emptySlide(){return {title:'',bullets:[''],image:null,imageW:0,imageH:0}}
+function emptySlide(){return {title:'',bullets:[''],image:null,imageW:0,imageH:0,images:null,table:null}}
+/* Ban 1.7: anh trong slide: images = [{src,w,h}] (w/h theo px, tu EMU
+   cua file nhap hoac tu anh chon); slide cu chi co image van hien qua
+   duong dan cu. Bang trong slide: table = {rows:[[o,...],...]}. */
+function slideImagesOf(slide){
+  if(slide.images&&slide.images.length){
+    return slide.images.map(function(im){
+      if(typeof im==='string')return {src:im,w:0,h:0};
+      return {src:im.src||im.image||'',w:im.w||im.imageW||0,h:im.h||im.imageH||0};
+    }).filter(function(im){return !!im.src});
+  }
+  if(slide.image)return [{src:slide.image,w:slide.imageW||0,h:slide.imageH||0}];
+  return [];
+}
+function slideTableRows(slide){
+  if(!slide.table)return null;
+  var rows=slide.table.rows||slide.table;
+  if(!Array.isArray(rows)||!rows.length)return null;
+  return rows;
+}
 function slideBullets(s){return (s.bullets||[]).filter(function(b){return String(b).trim()!==''})}
 function renderSlideEditor(){
   var wrap=$('slideEditor');if(!wrap)return;
@@ -2169,6 +2831,10 @@ function renderSlideEditor(){
   var imgHtml=s.image
     ?'<img class="slideimg" src="'+s.image+'" alt="Ảnh slide"><div class="row"><button onclick="removeSlideImage('+currentSlide+')">Xóa ảnh này</button></div>'
     :'<div class="row"><button onclick="pickSlideImage('+currentSlide+')">Chèn ảnh vào slide này</button></div>';
+  var _imgs=slideImagesOf(s);
+  var extraImgsHtml=(_imgs.length>1)?'<div class="row">Ảnh khác trong slide ('+(_imgs.length-1)+' ảnh thêm):</div>'+_imgs.slice(1).map(function(im){return '<img class="slideimg" src="'+im.src+'" alt="Ảnh slide">'}).join(''):'';
+  var _trows=slideTableRows(s);
+  var tableHtml=_trows?'<div class="row">Bảng trong slide:</div><table><tbody>'+_trows.map(function(row){return '<tr>'+(row||[]).map(function(cell){return '<td>'+esc(cell)+'</td>'}).join('')+'</tr>'}).join('')+'</tbody></table>':'';
   var dis=deckLocked?' disabled':'';
   var transLabel={none:'Không',fade:'Mờ dần',slide:'Trượt ngang',up:'Trượt dọc',zoom:'Phóng to'}[deckTransition]||'Không';
   var titleStyle='color:'+(s.titleColor||'#1a1a1a')+';'+(s.titleB?'font-weight:700;':'')+(s.titleI?'font-style:italic;':'')+(s.titleU?'text-decoration:underline;':'');
@@ -2180,7 +2846,7 @@ function renderSlideEditor(){
     +'<input type="text" value="'+esc(s.title||'')+'" oninput="updateSlideTitle('+currentSlide+',this.value)" placeholder="Tiêu đề slide" aria-label="Tiêu đề slide" style="'+titleStyle+'"'+dis+'>'
     +'<label>Nội dung — mỗi dòng một ý'+(s.bulletsOn===false?' (đang tắt gạch đầu dòng)':' gạch đầu dòng')+':</label>'
     +'<textarea oninput="updateSlideBullets('+currentSlide+',this.value)" placeholder="Ý thứ nhất&#10;Ý thứ hai" aria-label="Nội dung slide" style="'+bodyStyle+'" spellcheck="'+(pptSpellOn?'true':'false')+'"'+dis+'>'+esc((s.bullets||[]).join('\n'))+'</textarea>'
-    +imgHtml
+    +imgHtml+extraImgsHtml+tableHtml
     +slideShapesHtml(s)+shapeRow
     +slideChartHtml(s)
     +commentHtml
@@ -2206,7 +2872,7 @@ function newDeck(){currentDeckId=null;deckLocked=false;deckTypingPushed=false;$(
 function saveDeck(silent){
   var name=$('deckName').value.trim()||('Bài trình bày '+(new Date()).toLocaleDateString('vi-VN'));
   if(!currentDeckId)name=uniqueName('deck',name);
-  var slides=deckSlides.map(function(s){return {title:s.title||'',bullets:s.bullets||[],image:s.image||null,imageW:s.imageW||0,imageH:s.imageH||0,bg:s.bg||'',font:s.font||'',titleB:!!s.titleB,titleI:!!s.titleI,titleU:!!s.titleU,titleColor:s.titleColor||'',align:s.align||'left',bulletsOn:s.bulletsOn!==false,shapes:s.shapes||[],chart:s.chart||null,comment:s.comment||'',hidden:!!s.hidden}});
+  var slides=deckSlides.map(function(s){return {title:s.title||'',bullets:s.bullets||[],image:s.image||null,imageW:s.imageW||0,imageH:s.imageH||0,images:s.images||null,table:s.table||null,bg:s.bg||'',font:s.font||'',titleB:!!s.titleB,titleI:!!s.titleI,titleU:!!s.titleU,titleColor:s.titleColor||'',align:s.align||'left',bulletsOn:s.bulletsOn!==false,shapes:s.shapes||[],chart:s.chart||null,comment:s.comment||'',hidden:!!s.hidden}});
   var decks=loadJSON('vb_decks_v1',[]);
   var rec={id:currentDeckId||uid(),name:name,slides:slides,updatedAt:Date.now(),syncStatus:'local',size:deckSize,transition:deckTransition,locked:deckLocked};
   if(currentDeckId){var d=decks.find(function(x){return x.id===currentDeckId});if(d){Object.assign(d,rec)}else decks.unshift(rec)}
@@ -2217,7 +2883,7 @@ function saveDeck(silent){
 function openDeck(id){
   var d=loadJSON('vb_decks_v1',[]).find(function(x){return x.id===id});if(!d)return;
   currentDeckId=d.id;$('deckName').value=d.name;
-  deckSlides=(d.slides&&d.slides.length)?d.slides.map(function(s){return {title:s.title||'',bullets:s.bullets||[],image:s.image||null,imageW:s.imageW||0,imageH:s.imageH||0,bg:s.bg||'',font:s.font||'',titleB:!!s.titleB,titleI:!!s.titleI,titleU:!!s.titleU,titleColor:s.titleColor||'',align:s.align||'left',bulletsOn:s.bulletsOn!==false,shapes:s.shapes||[],chart:s.chart||null,comment:s.comment||'',hidden:!!s.hidden}}):[emptySlide()];
+  deckSlides=(d.slides&&d.slides.length)?d.slides.map(function(s){return {title:s.title||'',bullets:s.bullets||[],image:s.image||null,imageW:s.imageW||0,imageH:s.imageH||0,images:s.images||null,table:s.table||null,bg:s.bg||'',font:s.font||'',titleB:!!s.titleB,titleI:!!s.titleI,titleU:!!s.titleU,titleColor:s.titleColor||'',align:s.align||'left',bulletsOn:s.bulletsOn!==false,shapes:s.shapes||[],chart:s.chart||null,comment:s.comment||'',hidden:!!s.hidden}}):[emptySlide()];
   deckSize=d.size||'16:9';deckTransition=d.transition||'none';deckLocked=!!d.locked;deckTypingPushed=false;currentSlide=0;savedDeckSnap=deckSnapNow();
   renderSlideEditor();gotoTab('slides');
 }
@@ -2245,7 +2911,7 @@ function pickSlideImage(i){
 function removeSlideImage(i){
   if(!deckSlides[i])return;
   pushDeckHistory();
-  deckSlides[i].image=null;deckSlides[i].imageW=0;deckSlides[i].imageH=0;renderSlideEditor();
+  deckSlides[i].image=null;deckSlides[i].imageW=0;deckSlides[i].imageH=0;deckSlides[i].images=null;renderSlideEditor();
 }
 $('slideImageInput').addEventListener('change',function(){
   var f=this.files[0];var idx=pendingImageSlide;pendingImageSlide=-1;
@@ -2340,7 +3006,7 @@ function fitBox(maxW,maxH,iw,ih){
    Cu: tieu de luon dam mac dinh, khong mau/font; hieu ung/co chi o trong
    app, file xuat mat het. Zoom khong co dang transition chuan don gian
    nen xuat thanh fade (ghi ro trong code, khong bia kieu transition). */
-function pptxSlideXml(slide,imgRelId,opts){
+function pptxSlideXml(slide,imgList,opts){
   opts=opts||{};
   var slideW=(opts.size==='4:3')?9144000:12192000;
   var slideH=6858000;
@@ -2367,15 +3033,53 @@ function pptxSlideXml(slide,imgRelId,opts){
       +'<p:txBody><a:bodyPr/><a:lstStyle/>'+paras+'</p:txBody></p:sp>';
   }
   var pic='';
-  if(hasImg){
+  var _imgList=(imgList&&imgList.length)?imgList:(hasImg?[{rel:(typeof imgList==='string'?imgList:null),src:slide.image,w:slide.imageW||0,h:slide.imageH||0}]:[]);
+  if(_imgList.length===1){
     var box=bullets.length
-      ?fitBox(3657600,4572000,slide.imageW,slide.imageH)
-      :fitBox(8229600,4572000,slide.imageW,slide.imageH);
+      ?fitBox(3657600,4572000,_imgList[0].w,_imgList[0].h)
+      :fitBox(8229600,4572000,_imgList[0].w,_imgList[0].h);
     var px=bullets.length?5486400:Math.round(457200+(8229600-box.w)/2);
     var py=1371600+Math.round((4572000-box.h)/2);
     pic='<p:pic><p:nvPicPr><p:cNvPr id="4" name="Ảnh"/><p:cNvPicPr/></p:nvPicPr>'
-      +'<p:blipFill><a:blip r:embed="'+imgRelId+'"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>'
+      +'<p:blipFill><a:blip r:embed="'+_imgList[0].rel+'"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>'
       +'<p:spPr><a:xfrm><a:off x="'+px+'" y="'+py+'"/><a:ext cx="'+box.w+'" cy="'+box.h+'"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>';
+  }else if(_imgList.length>1){
+    /* Nhieu anh: xep chong theo chieu doc trong cot anh (ben phai neu co
+       gach dau dong, khong thi toan chieu rong); anh nhap tu file giu
+       ti le qua w/h tu EMU, anh khong ro kich thuoc thi vua khung. */
+    var slotH=Math.floor(4572000/_imgList.length);
+    var bw2=bullets.length?3657600:8229600;
+    var px2=bullets.length?5486400:457200;
+    pic=_imgList.map(function(im,idx){
+      var fb=fitBox(bw2,slotH,im.w,im.h);
+      var py2=1371600+idx*slotH+Math.round((slotH-fb.h)/2);
+      return '<p:pic><p:nvPicPr><p:cNvPr id="'+(4+idx)+'" name="Ảnh '+(idx+1)+'"/><p:cNvPicPr/></p:nvPicPr>'
+        +'<p:blipFill><a:blip r:embed="'+im.rel+'"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>'
+        +'<p:spPr><a:xfrm><a:off x="'+px2+'" y="'+py2+'"/><a:ext cx="'+fb.w+'" cy="'+fb.h+'"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>';
+    }).join('');
+  }
+  var tableXml='';
+  var _trows2=slideTableRows(slide);
+  if(_trows2){
+    var ncols=Math.max.apply(null,_trows2.map(function(r){return (r||[]).length}));
+    if(ncols>0){
+      var colW=Math.floor(8229600/ncols);
+      var frameH=1371600;
+      var rowH=Math.max(200000,Math.floor(frameH/_trows2.length));
+      var gridXml='';
+      for(var gi=0;gi<ncols;gi++)gridXml+='<a:gridCol w="'+colW+'"/>';
+      var trsXml=_trows2.map(function(row){
+        var tcs='';
+        for(var ci2=0;ci2<ncols;ci2++){
+          var cell=(row||[])[ci2];
+          tcs+='<a:tc><a:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang="vi-VN" sz="1800"><a:latin typeface="'+esc(fontName)+'"/></a:rPr><a:t>'+esc(cell==null?'':cell)+'</a:t></a:r></a:p></a:txBody><a:tcPr/></a:tc>';
+        }
+        return '<a:tr h="'+rowH+'">'+tcs+'</a:tr>';
+      }).join('');
+      tableXml='<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="20" name="Bảng"/><p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr></p:nvGraphicFramePr>'
+        +'<p:xfrm><a:off x="457200" y="5486400"/><a:ext cx="8229600" cy="'+frameH+'"/></p:xfrm>'
+        +'<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblPr firstRow="1" bandRow="1"/><a:tblGrid>'+gridXml+'</a:tblGrid>'+trsXml+'</a:tbl></a:graphicData></a:graphic></p:graphicFrame>';
+    }
   }
   var shapes='';
   if(slide.shapes&&slide.shapes.length){
@@ -2395,7 +3099,7 @@ function pptxSlideXml(slide,imgRelId,opts){
     +'<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">'
     +'<p:cSld>'+bgXml+'<p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/></p:nvGrpSpPr>'
     +'<p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="'+slideW+'" cy="'+slideH+'"/></a:xfrm></p:grpSpPr>'
-    +title+body+pic+shapes+'</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>'+trans+'</p:sld>';
+    +title+body+pic+shapes+tableXml+'</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>'+trans+'</p:sld>';
 }
 function buildPptxBlob(deck){
   var slides=(deck.slides&&deck.slides.length)?deck.slides:[emptySlide()];
@@ -2424,18 +3128,18 @@ function buildPptxBlob(deck){
   entries.push({name:'ppt/presentation.xml',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:presentation xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rIdM"/></p:sldMasterIdLst><p:sldIdLst>'+sldIds+'</p:sldIdLst>'+sldSz+'<p:notesSz cx="6858000" cy="9144000"/></p:presentation>'});
   var imgCount=0;
   slides.forEach(function(s,i){
-    var imgRelId=null,slideRels='<Relationship Id="rIdL" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>';
-    if(s.image){
+    var slideRels='<Relationship Id="rIdL" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>';
+    var imgList=slideImagesOf(s).map(function(im,k){
       imgCount++;
-      imgRelId='rIdImg';
       var imgExt='jpg';
-      var imgMm=/^data:([^;]+);base64,/.exec(s.image||'');
+      var imgMm=/^data:([^;]+);base64,/.exec(im.src||'');
       if(imgMm){var sub2=imgMm[1].split('/')[1]||'jpg';sub2=sub2.replace(/[^a-z0-9]/g,'');imgExt=(sub2==='jpeg')?'jpg':(sub2||'jpg')}
-      slideRels+='<Relationship Id="rIdImg" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image'+imgCount+'.'+imgExt+'"/>';
-      entries.push({name:'ppt/media/image'+imgCount+'.'+imgExt,data:dataUrlToBytes(s.image)});
-    }
+      slideRels+='<Relationship Id="rIdImg'+(k+1)+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image'+imgCount+'.'+imgExt+'"/>';
+      entries.push({name:'ppt/media/image'+imgCount+'.'+imgExt,data:dataUrlToBytes(im.src)});
+      return {rel:'rIdImg'+(k+1),src:im.src,w:im.w,h:im.h};
+    });
     entries.push({name:'ppt/slides/_rels/slide'+(i+1)+'.xml.rels',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+slideRels+'</Relationships>'});
-    entries.push({name:'ppt/slides/slide'+(i+1)+'.xml',data:pptxSlideXml(s,imgRelId,{size:deck.size,transition:deck.transition})});
+    entries.push({name:'ppt/slides/slide'+(i+1)+'.xml',data:pptxSlideXml(s,imgList,{size:deck.size,transition:deck.transition})});
   });
   entries.push({name:'ppt/slideLayouts/slideLayout1.xml',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sldLayout xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" type="blank"><p:cSld name="Trống"><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="12192000" cy="6858000"/></a:xfrm></p:grpSpPr></p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>'});
   entries.push({name:'ppt/slideMasters/_rels/slideMaster1.xml.rels',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdL" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/><Relationship Id="rIdT" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="../theme/theme1.xml"/></Relationships>'});
@@ -2443,10 +3147,11 @@ function buildPptxBlob(deck){
   entries.push({name:'ppt/theme/theme1.xml',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Văn phòng của Bùi"><a:themeElements><a:clrScheme name="Mặc định"><a:dk1><a:sysClr val="windowText" lastClr="1A1A1A"/></a:dk1><a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="44546A"/></a:dk2><a:lt2><a:srgbClr val="E7E6E6"/></a:lt2><a:accent1><a:srgbClr val="0B6FA4"/></a:accent1><a:accent2><a:srgbClr val="ED7D31"/></a:accent2><a:accent3><a:srgbClr val="A5A5A5"/></a:accent3><a:accent4><a:srgbClr val="FFC000"/></a:accent4><a:accent5><a:srgbClr val="70AD47"/></a:accent5><a:accent6><a:srgbClr val="7030A0"/></a:accent6><a:hlink><a:srgbClr val="0563C1"/></a:hlink><a:folHlink><a:srgbClr val="954F72"/></a:folHlink></a:clrScheme><a:fontScheme name="Mặc định"><a:majorFont><a:latin typeface="Carlito"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont><a:minorFont><a:latin typeface="Carlito"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont></a:fontScheme><a:fmtScheme name="Mặc định"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst><a:lnStyleLst><a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst></a:fmtScheme></a:themeElements></a:theme>'});
   return zipStored(entries);
 }
-/* Ban 1.6: nhap pptx (truoc day chua nhap duoc). Giu thu tu slide theo
-   presentation.xml, tieu de, noi dung (moi doan = 1 y), anh dau tien cua
-   moi slide, slide an (show="0"). Khong nhap duoc: bieu do, bang, hinh
-   dang, ghi chu, hieu ung, chu de; slide co nhieu anh thi chi lay anh dau. */
+/* Ban 1.7: nhap pptx GIU them bang + moi anh (1.6 chi lay anh dau, bo
+   bang). Giu thu tu slide theo presentation.xml, tieu de, noi dung
+   (moi doan = 1 y), moi anh cua moi slide, bang dau tien cua moi
+   slide, slide an (show="0"). Khong nhap duoc: bieu do, hinh dang,
+   ghi chu, hieu ung, chu de; slide co nhieu bang thi chi giu bang dau. */
 function parsePptxToDeck(entries){
   function relsMap(xml){
     var m={};var re=/<Relationship[^>]*Id="([^"]+)"[^>]*Target="([^"]+)"/g;var mm;
@@ -2509,21 +3214,50 @@ function parsePptxToDeck(entries){
       }else bullets=bullets.concat(paras);
       firstShape=false;
     }
-    var image=null;
-    var picM=/<p:pic>([\s\S]*?)<\/p:pic>/.exec(slideXml);
-    if(picM){
-      var blipM=/<a:blip[^>]*r:embed="([^"]+)"/.exec(picM[1]);
-      if(blipM){
-        var mediaPath=normMedia(slideRels[blipM[1]]||'');
-        var bytes=entries[mediaPath];
-        if(bytes){
-          var ext=mediaPath.split('.').pop().toLowerCase();
-          var mime=(ext==='png')?'image/png':(ext==='gif')?'image/gif':(ext==='webp')?'image/webp':'image/jpeg';
-          image='data:'+mime+';base64,'+bytesToBase64(bytes);
-        }
-      }
+    var images=[];
+    var picRe=/<p:pic>([\s\S]*?)<\/p:pic>/g;var picM2;
+    while((picM2=picRe.exec(slideXml))){
+      var blipM=/<a:blip[^>]*r:embed="([^"]+)"/.exec(picM2[1]);
+      if(!blipM)continue;
+      var mediaPath=normMedia(slideRels[blipM[1]]||'');
+      var bytes=entries[mediaPath];
+      if(!bytes)continue;
+      var ext=mediaPath.split('.').pop().toLowerCase();
+      var mime=(ext==='png')?'image/png':(ext==='gif')?'image/gif':(ext==='webp')?'image/webp':'image/jpeg';
+      var exM=/<a:ext cx="(\d+)" cy="(\d+)"/.exec(picM2[1]);
+      var iw=exM?Math.round(+exM[1]/9525):0;
+      var ih=exM?Math.round(+exM[2]/9525):0;
+      images.push({src:'data:'+mime+';base64,'+bytesToBase64(bytes),w:iw,h:ih});
     }
-    return {title:title,bullets:bullets.length?bullets:[''],image:image,imageW:0,imageH:0,hidden:!!o.hidden};
+    var image=images.length?images[0].src:null;
+    var imageW=images.length?images[0].w:0;
+    var imageH=images.length?images[0].h:0;
+    /* Bang trong slide: lay bang a:tbl dau tien (slide co nhieu bang thi
+       chi giu bang dau — ghi ro o thong bao nhap). */
+    var table=null;
+    var tblM=/<a:tbl>([\s\S]*?)<\/a:tbl>/.exec(slideXml);
+    if(tblM){
+      var trows=[];
+      var trRe2=/<a:tr(?:\s[^>]*)?>([\s\S]*?)<\/a:tr>/g;var trM2;
+      while((trM2=trRe2.exec(tblM[1]))){
+        var cells=[];
+        var tcRe2=/<a:tc(?:\s[^>]*)?>([\s\S]*?)<\/a:tc>/g;var tcM2;
+        while((tcM2=tcRe2.exec(trM2[1]))){
+          var cellParts=[];
+          var cpRe2=/<a:p>([\s\S]*?)<\/a:p>/g;var cpM2;
+          while((cpM2=cpRe2.exec(tcM2[1]))){
+            var txt2='';
+            var tRe3=/<a:t>([^<]*)<\/a:t>/g;var tM3;
+            while((tM3=tRe3.exec(cpM2[1])))txt2+=xmlUnesc(tM3[1]);
+            cellParts.push(txt2);
+          }
+          cells.push(cellParts.join(' '));
+        }
+        if(cells.length)trows.push(cells);
+      }
+      if(trows.length)table={rows:trows};
+    }
+    return {title:title,bullets:bullets.length?bullets:[''],image:image,imageW:imageW,imageH:imageH,images:images.length?images:null,table:table,hidden:!!o.hidden};
   });
   if(!slides.length)slides=[emptySlide()];
   return {slides:slides,size:size};
@@ -2747,7 +3481,7 @@ function updateStatusBar(){
     var t=editorText();var words=t.trim()?t.trim().split(/\s+/).length:0;
     l.textContent='Trang 1 • '+words+' từ • '+t.length+' ký tự';
   }else if(currentApp==='excel'){
-    l.textContent='Ô '+cellRef(selCell.r,selCell.c)+' • Sheet1'+(sheetLocked?' • Đã bảo vệ':'');
+    l.textContent='Ô '+cellRef(selCell.r,selCell.c)+' • '+currentSheetName()+(sheetLocked?' • Đã bảo vệ':'');
   }else if(currentApp==='ppt'){
     l.textContent='Slide '+(currentSlide+1)+' / '+deckSlides.length;
   }else{
@@ -2796,16 +3530,18 @@ function toggleThumbs(){
   thumbsOn=!thumbsOn;var l=$('slideLayout');
   if(l){if(thumbsOn)l.classList.remove('hide-thumbs');else l.classList.add('hide-thumbs');}
 }
-/* ---------- Ban 1.6: bao ro muc nao CHUA luu theo file truoc khi xuat ----------
+/* ---------- Ban 1.6 (cap nhat 1.7): bao ro muc nao CHUA luu theo file truoc khi xuat ----------
    Nguyen tac: khong de nguoi dung tuong da luu ma thuc ra mat. Moi muc chi
    o trong phien hoac chi luu o may (localStorage) deu phai xuat hien o day.
    Danh sach duoc kiem tra that tu noi dung hien tai (khong phai nhan cung):
    - Word da luu theo docx: chu, dinh dang chu, tieu de, bang, anh, thut le,
      vien doan, theo doi thay doi (w:ins/w:del), mau nen trang, khoang cach
-     dong. CHUA luu: nhan xet (chi xuat thanh doan van thuong), dau trang/
-     chan trang (chi xuat thanh doan van thuong), bo cuc nhieu cot.
+     dong. Ban 1.7 them: dau trang/chan trang that (header/footer parts),
+     ghi chu that (comments.xml), muc luc dang truong TOC (quet lai tu
+     tieu de khi xuat). CHUA luu: bo cuc nhieu cot.
    - Excel da luu theo xlsx: gia tri, cong thuc, dinh dang o, dong bang,
-     khoa trang. CHUA luu: ghi chu o, bieu do cot (chi hien trong phien).
+     khoa trang. Ban 1.7 them: gop o, nhieu trang tinh, ghi chu o that
+     (comments legacy). CHUA luu: bieu do cot (chi hien trong phien).
    - PowerPoint da luu theo pptx: chu, dinh dang chu tieu de, nen slide,
      anh, hinh dang don gian, hieu ung, co slide, slide an. CHUA luu:
      nhan xet slide, bieu do slide, khoa bai (chi co tac dung trong app).
@@ -2815,14 +3551,13 @@ function exportWarnings(app){
   var out=[];
   if(app==='word'){
     var html=$('editor')?($('editor').innerHTML||''):''; 
-    if(html.indexOf('comment-para')>=0)out.push('Nhận xét trong tài liệu: khi xuất .docx chỉ còn là đoạn văn thường, không còn là nhận xét Word (không gắn vào đoạn, không có tác giả/ngày)');
-    if(html.indexOf('doc-header')>=0)out.push('Đầu trang: khi xuất .docx chỉ còn là đoạn văn thường ở đầu tài liệu, không còn là đầu trang thật');
-    if(html.indexOf('doc-footer')>=0)out.push('Chân trang: khi xuất .docx chỉ còn là đoạn văn thường ở cuối tài liệu, không còn là chân trang thật');
+    /* Ban 1.7: dau trang/chan trang/ghi chu/muc luc nay xuat that theo
+       docx (header/footer parts, comments.xml, truong TOC) nen khong
+       con canh bao cho cac muc nay nua; chi con bo cuc nhieu cot. */
     if(html.indexOf('column-count')>=0)out.push('Bố cục nhiều cột: khi xuất .docx chỉ còn là văn bản một cột');
   }else if(app==='excel'){
-    Object.keys(cellFmt).forEach(function(k){
-      if(cellFmt[k]&&cellFmt[k].note)out.push('Ghi chú ở ô '+cellRef(+k.split(',')[0],+k.split(',')[1])+' chưa xuất sang .xlsx');
-    });
+    /* Ban 1.7: ghi chu o nay xuat that sang .xlsx (comments legacy) nen
+       khong con canh bao; chi con bieu do cot trong phien. */
     var ch=$('sheetChart');
     if(ch&&ch.style&&ch.style.display!=='none'&&ch.innerHTML)out.push('Biểu đồ cột đang hiện chỉ ở trong phiên, không xuất sang .xlsx và không lưu theo file');
   }else if(app==='ppt'){
@@ -2923,25 +3658,35 @@ function backstageShow(view){
       +'<p><b>Excel:</b> chạm một lần để chọn ô, chạm hai lần liên tiếp để sửa ô, vuốt để cuộn bảng. Công thức hỗ trợ: =SUM(A1:A3), =AVERAGE(A1:A3), =COUNT, =MAX, =MIN, tham chiếu ô (=A1) và phép tính (+ − × ÷, ngoặc). Sửa xong chạm sang ô khác là tính lại ngay.</p>'
       +'<p><b>PowerPoint:</b> bấm nút trình chiếu là xem toàn màn hình; vuốt ngón tay sang trái/phải để chuyển slide, hoặc bấm hai nút Trước/Sau lớn ở dưới màn hình; bấm “Thoát” để về lại trang soạn. Ảnh chèn vào slide được nén nhỏ (tối đa 1280px) trước khi lưu để vừa bộ nhớ trình duyệt.</p>'
       +'<p><b>Chính tả:</b> nút Chính tả chỉ bật/tắt gạch chân cơ học của trình duyệt — CHƯA có từ điển tiếng Việt, không phải kiểm tra chính tả thật.</p>'
-      +'<p><b>Excel:</b> công thức tính trên GIÁ TRỊ SỐ THẬT của ô, không tính trên chữ hiển thị: ô gõ “1.000.000 ₫” có giá trị 1000000, ô gõ “50%” có giá trị 0,5. Hàm có: SUM, AVERAGE, COUNT, MAX, MIN, IF, ROUND, ABS, VLOOKUP (khớp chính xác).</p>'
+      +'<p><b>Excel:</b> công thức tính trên GIÁ TRỊ SỐ THẬT của ô, không tính trên chữ hiển thị: ô gõ “1.000.000 ₫” có giá trị 1000000, ô gõ “50%” có giá trị 0,5. Hàm có: SUM, AVERAGE, COUNT, MAX, MIN, IF, ROUND, ABS, VLOOKUP (gần đúng cho cột đã sắp xếp — số và chữ theo thứ tự tiếng Việt, FALSE để khớp chính xác), COUNTIF, SUMIF; công thức liên trang dạng Sheet2!A1.</p>'
       +'<p><b>PDF:</b> chụm hai ngón để phóng to/thu nhỏ trang, vẽ chú thích bằng ngón tay trên trang, chạm để thêm ghi chú. Không cần chuột hay thao tác chính xác từng pixel.</p>'
       +'</details>';
     c.innerHTML='<h3>Thông tin</h3><p>'+info+'</p>'+nameRow+guide;
   }
 }
-/* Undo / Redo: Word dùng lệnh của trình duyệt; Excel/PowerPoint dùng ảnh chụp nhanh. */
+/* Undo / Redo (1.7): Word dùng ngăn xếp tự làm (wordHistory); Excel/PowerPoint dùng ảnh chụp nhanh. */
 var sheetUndo=[],sheetRedo=[];
 /* Ban 1.6: anh chup gom ca khoa trang/dong bang/luoi de undo tra dung trang thai;
    dinh dang o phai di theo hang/cot khi chen/xoa/sap xep — cu: dinh dang o
    lai so hang cu trong khi noi dung doi cho, sai cap doi. */
-function sheetSnapshot(){return JSON.stringify({raw:sheetRaw,fmt:cellFmt,locked:sheetLocked,freeze:freezeTopRow,grid:gridOn})}
+function sheetSnapshot(){return JSON.stringify({raw:sheetRaw,fmt:cellFmt,merges:sheetMerges,sheets:workbookSnapshotSheets(),active:activeSheetIndex,locked:sheetLocked,freeze:freezeTopRow,grid:gridOn})}
 function sheetRestore(snap){
-  try{var o=JSON.parse(snap);if(o&&o.raw){sheetRaw=o.raw;cellFmt=o.fmt||{};
+  try{var o=JSON.parse(snap);
+    if(o&&o.sheets&&o.sheets.length){
+      wbSheets=o.sheets.map(function(sh){return {name:sh.name||'Sheet1',raw:normalizeSheetRaw(sh.raw),fmt:sh.fmt||{},merges:normalizeMerges(sh.merges||[]),locked:!!sh.locked,freeze:!!sh.freeze,grid:sh.grid!==false}});
+      activeSheetIndex=Math.min(Math.max(0,o.active||0),wbSheets.length-1);
+      var sh2=wbSheets[activeSheetIndex];
+      sheetRaw=normalizeSheetRaw(sh2.raw);cellFmt=sh2.fmt||{};sheetMerges=normalizeMerges(sh2.merges||[]);
+      sheetLocked=!!sh2.locked;freezeTopRow=!!sh2.freeze;gridOn=sh2.grid!==false;
+      var w2=$('sheetWrap');if(w2){if(gridOn)w2.classList.remove('nogrid');else w2.classList.add('nogrid')}
+      return;
+    }
+    if(o&&o.raw){sheetRaw=o.raw;cellFmt=o.fmt||{};sheetMerges=normalizeMerges(o.merges||[]);
     if(o.locked!==undefined)sheetLocked=!!o.locked;
     if(o.freeze!==undefined)freezeTopRow=!!o.freeze;
     if(o.grid!==undefined){gridOn=o.grid!==false;var w=$('sheetWrap');if(w){if(gridOn)w.classList.remove('nogrid');else w.classList.add('nogrid')}}
     return}}catch(e){}
-  sheetRaw=JSON.parse(snap);cellFmt={};
+  sheetRaw=JSON.parse(snap);cellFmt={};sheetMerges=[];
 }
 function shiftCellFmtRows(at,delta){
   var nf={};
@@ -2982,8 +3727,85 @@ function deckRestore(snap){
 function pushDeckHistory(){deckTypingPushed=false;deckUndo.push(deckSnapshot());if(deckUndo.length>50)deckUndo.shift();deckRedo=[];}
 function undoDeck(){if(!deckUndo.length)return;deckTypingPushed=false;deckRedo.push(deckSnapshot());deckRestore(deckUndo.pop());if(currentSlide>=deckSlides.length)currentSlide=deckSlides.length-1;if(currentSlide<0)currentSlide=0;renderSlideEditor();updateStatusBar();}
 function redoDeck(){if(!deckRedo.length)return;deckTypingPushed=false;deckUndo.push(deckSnapshot());deckRestore(deckRedo.pop());if(currentSlide>=deckSlides.length)currentSlide=deckSlides.length-1;if(currentSlide<0)currentSlide=0;renderSlideEditor();updateStatusBar();}
-function undo(){if(currentApp==='word')cmd('undo');else if(currentApp==='excel')undoSheet();else if(currentApp==='ppt')undoDeck();}
-function redo(){if(currentApp==='word')cmd('redo');else if(currentApp==='excel')redoSheet();else if(currentApp==='ppt')redoDeck();}
+/* Ban 1.7: hoan tac Word TU LAM, khong dung lenh native cua trinh duyet
+   (cu: cmd('undo')/cmd('redo') phu thuoc execCommand nen khong kiem
+   chung tu dong duoc). Loi lich su la ham thuan makeHistoryStack:
+   past giu cac anh chup TRUOC moi lan sua, current giu o ngoai; undo
+   day current vao future roi lay past, redo nguoc lai; push moi xoa
+   future. Tich hop: docNoteEdit() duoc goi khi editor doi (su kien
+   input, lenh dinh dang, chen noi dung, dau/chan trang, chap nhan/tu
+   choi thay doi) — moi lan doi day anh chup truoc do vao past. Khoi
+   phuc con tro chi co gang dat ve cuoi tai lieu (anh chup la chuoi
+   HTML, khong luu vi tri con tro chinh xac) — ghi ro, khong bia la
+   giu dung vi tri cu. */
+function makeHistoryStack(limit){
+  var past=[],future=[];
+  var L=limit||50;
+  return {
+    past:past,future:future,
+    push:function(state){
+      if(past.length&&past[past.length-1]===state)return;
+      past.push(state);
+      if(past.length>L)past.shift();
+      future.length=0;
+    },
+    undo:function(current){
+      if(!past.length)return {state:current,changed:false};
+      future.push(current);
+      return {state:past.pop(),changed:true};
+    },
+    redo:function(current){
+      if(!future.length)return {state:current,changed:false};
+      past.push(current);
+      return {state:future.pop(),changed:true};
+    },
+    canUndo:function(){return past.length>0},
+    canRedo:function(){return future.length>0},
+    clear:function(){past.length=0;future.length=0}
+  };
+}
+var wordHistory=makeHistoryStack(50);
+var docHistoryCurrent='';
+function docNoteEdit(){
+  if(typeof wordHistory==='undefined')return;
+  var ed=$('editor');if(!ed)return;
+  var html=ed.innerHTML||'';
+  if(html!==docHistoryCurrent){wordHistory.push(docHistoryCurrent);docHistoryCurrent=html;}
+}
+function docHistoryReset(){
+  wordHistory.clear();
+  var ed=$('editor');
+  docHistoryCurrent=ed?(ed.innerHTML||''):'';
+}
+function placeCaretAtEnd(){
+  try{
+    var ed=$('editor');if(!ed)return;
+    ed.focus();
+    var sel=window.getSelection&&window.getSelection();
+    if(!sel||!sel.removeAllRanges||!document.createRange)return;
+    var range=document.createRange();
+    range.selectNodeContents(ed);range.collapse(false);
+    sel.removeAllRanges();sel.addRange(range);
+  }catch(e){}
+}
+function wordUndo(){
+  if(!wordHistory.canUndo())return;
+  var ed=$('editor');if(!ed)return;
+  var res=wordHistory.undo(ed.innerHTML||'');
+  if(!res.changed)return;
+  ed.innerHTML=res.state;docHistoryCurrent=res.state;
+  placeCaretAtEnd();updateStatusBar();
+}
+function wordRedo(){
+  if(!wordHistory.canRedo())return;
+  var ed=$('editor');if(!ed)return;
+  var res=wordHistory.redo(ed.innerHTML||'');
+  if(!res.changed)return;
+  ed.innerHTML=res.state;docHistoryCurrent=res.state;
+  placeCaretAtEnd();updateStatusBar();
+}
+function undo(){if(currentApp==='word')wordUndo();else if(currentApp==='excel')undoSheet();else if(currentApp==='ppt')undoDeck();}
+function redo(){if(currentApp==='word')wordRedo();else if(currentApp==='excel')redoSheet();else if(currentApp==='ppt')redoDeck();}
 /* Ten file trung: them hau to (2), (3)... thay vi ghi de hay tao trung ten. */
 function uniqueName(kind,name){
   var key=kind==='doc'?'vb_docs_v1':(kind==='sheet'?'vb_sheets_v1':'vb_decks_v1');
@@ -3028,7 +3850,7 @@ function deleteGen(id){
   renderFileList();
 }
 /* Word: chen bang / anh / ngay / duong ke / ngat trang / muc luc / nhan xet. */
-function insertHtmlAtCursor(html){$('editor').focus();document.execCommand('insertHTML',false,html);updateStatusBar();}
+function insertHtmlAtCursor(html){$('editor').focus();document.execCommand('insertHTML',false,html);try{docNoteEdit()}catch(e){}updateStatusBar();}
 function insertTableIntoDoc(){
   var row='<tr><td></td><td></td><td></td></tr>';
   insertHtmlAtCursor('<table><tbody>'+row+row+row+'</tbody></table><p></p>');
@@ -3054,10 +3876,10 @@ function insertTOC(){
     if(nodeText(n).trim())heads.push({lv:tg,txt:nodeText(n).trim()});
   });
   if(!heads.length){alert('Chưa có tiêu đề nào (Tiêu đề 1/2/3) để lập mục lục. Đặt tiêu đề cho các phần trước, rồi bấm lại.');return}
-  var html='<h2>Mục lục</h2>'+heads.map(function(h){
+  var html='<div class="doc-toc"><h2>Mục lục</h2>'+heads.map(function(h){
     var pad=h.lv==='h2'?'&nbsp;&nbsp;&nbsp;&nbsp;':(h.lv==='h3'?'&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;':'');
     return '<p>'+pad+esc(h.txt)+'</p>';
-  }).join('');
+  }).join('')+'</div>';
   insertHtmlAtCursor(html);
 }
 function insertFootnoteNote(){
@@ -3108,21 +3930,21 @@ function commitFormulaBar(){
 }
 function insertRowAbove(){
   if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}
-  pushSheetHistory();shiftCellFmtRows(selCell.r,1);sheetRaw.splice(selCell.r,0,Array(SHEET_COLS).fill(''));sheetRaw.length=SHEET_ROWS;renderSheet();
+  pushSheetHistory();shiftCellFmtRows(selCell.r,1);shiftMergesRows(selCell.r,1);sheetRaw.splice(selCell.r,0,Array(SHEET_COLS).fill(''));sheetRaw.length=SHEET_ROWS;renderSheet();
 }
 function insertColLeft(){
   if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}
-  pushSheetHistory();shiftCellFmtCols(selCell.c,1);
+  pushSheetHistory();shiftCellFmtCols(selCell.c,1);shiftMergesCols(selCell.c,1);
   sheetRaw.forEach(function(row){row.splice(selCell.c,0,'');row.length=SHEET_COLS;});
   renderSheet();
 }
 function deleteRow(){
   if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}
-  pushSheetHistory();shiftCellFmtRows(selCell.r,-1);sheetRaw.splice(selCell.r,1);sheetRaw.push(Array(SHEET_COLS).fill(''));renderSheet();
+  pushSheetHistory();shiftCellFmtRows(selCell.r,-1);shiftMergesRows(selCell.r,-1);sheetRaw.splice(selCell.r,1);sheetRaw.push(Array(SHEET_COLS).fill(''));renderSheet();
 }
 function deleteCol(){
   if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}
-  pushSheetHistory();shiftCellFmtCols(selCell.c,-1);sheetRaw.forEach(function(row){row.splice(selCell.c,1);row.push('');});renderSheet();
+  pushSheetHistory();shiftCellFmtCols(selCell.c,-1);shiftMergesCols(selCell.c,-1);sheetRaw.forEach(function(row){row.splice(selCell.c,1);row.push('');});renderSheet();
 }
 function clearCell(){
   if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}
@@ -3156,11 +3978,15 @@ function sortSheet(dir){
     });
   });
   cellFmt=nf;dupKeys={};
+  var oldToNewSort=indexed.map(function(it){return it.i});
+  var mapSort=[];indexed.forEach(function(it,ni){mapSort[it.i]=ni});
+  for(var rr2=lastR+1;rr2<SHEET_ROWS;rr2++)mapSort[rr2]=rr2;
+  remapMergesAfterRowReorder(mapSort);
   for(var i=0;i<indexed.length;i++)sheetRaw[i]=indexed[i].row;
   renderSheet();
 }
 function showFormulaHelp(){
-  alert('Cách viết công thức: bắt đầu bằng dấu =. Ví dụ: =SUM(A1:A3) cộng các ô A1 tới A3; =AVERAGE, =COUNT (chỉ đếm ô có số), =MAX, =MIN; =A1+B1; =A1*2; =IF(A1>5,"Đạt","Chưa"); =ROUND(A1,2) làm tròn; =VLOOKUP(A1,C1:D5,2) tìm khớp chính xác. Gõ 50% thì giá trị thật là 0,5; gõ 1.000.000 ₫ thì giá trị thật là 1000000 — công thức luôn tính trên giá trị thật, không tính trên chữ hiển thị. Gõ công thức vào thanh công thức (fx) rồi Enter, hoặc chạm hai lần vào ô để sửa.');
+  alert('Cách viết công thức: bắt đầu bằng dấu =. Ví dụ: =SUM(A1:A3) cộng các ô A1 tới A3; =AVERAGE, =COUNT (chỉ đếm ô có số), =MAX, =MIN; =A1+B1; =A1*2; =IF(A1>5,"Đạt","Chưa"); =ROUND(A1,2) làm tròn; =VLOOKUP(A1,C1:D5,2) tìm gần đúng theo cột đã sắp xếp (thêm ,FALSE để khớp chính xác); =COUNTIF(A1:A9,">5"); =SUMIF(A1:A9,"An",B1:B9). Liên trang: =Sheet2!A1, tên có dấu cách thì =\'Tên trang\'!A1. Gõ 50% thì giá trị thật là 0,5; gõ 1.000.000 ₫ thì giá trị thật là 1000000 — công thức luôn tính trên giá trị thật. Lỗi (chia cho 0, vòng tròn, sai cú pháp, không tìm thấy) đều hiện #LỖI. Gõ công thức vào thanh công thức (fx) rồi Enter, hoặc chạm hai lần vào ô để sửa.');
 }
 function triggerImportCsv(){var f=$('importFile');if(f)f.click();else gotoTab('files');}
 function toggleSheetLock(){
@@ -3324,12 +4150,12 @@ function insertPageNumber(){
 function insertDocHeader(){
   if($('editor').querySelector('.doc-header')){alert('Tài liệu đã có đầu trang rồi — sửa trực tiếp dòng đầu trang.');return}
   var txt=prompt('Nhập nội dung đầu trang:');if(!txt)return;
-  $('editor').insertAdjacentHTML('afterbegin','<div class="doc-header">'+esc(txt)+'</div>');
+  $('editor').insertAdjacentHTML('afterbegin','<div class="doc-header">'+esc(txt)+'</div>');try{docNoteEdit()}catch(e){}
 }
 function insertDocFooter(){
   if($('editor').querySelector('.doc-footer')){alert('Tài liệu đã có chân trang rồi — sửa trực tiếp dòng chân trang.');return}
   var txt=prompt('Nhập nội dung chân trang:');if(!txt)return;
-  $('editor').insertAdjacentHTML('beforeend','<div class="doc-footer">'+esc(txt)+'</div>');
+  $('editor').insertAdjacentHTML('beforeend','<div class="doc-footer">'+esc(txt)+'</div>');try{docNoteEdit()}catch(e){}
 }
 function insertDocLink(){
   var url=prompt('Nhập địa chỉ liên kết (ví dụ https://example.com):');if(!url)return;
@@ -3427,13 +4253,13 @@ function acceptChanges(){
   var ed=$('editor');
   Array.from(ed.querySelectorAll('ins.track-ins')).forEach(function(el){var p=el.parentNode;while(el.firstChild)p.insertBefore(el.firstChild,el);p.removeChild(el)});
   Array.from(ed.querySelectorAll('del.track-del')).forEach(function(el){el.parentNode.removeChild(el)});
-  updateStatusBar();
+  try{docNoteEdit()}catch(e){}updateStatusBar();
 }
 function rejectChanges(){
   var ed=$('editor');
   Array.from(ed.querySelectorAll('ins.track-ins')).forEach(function(el){el.parentNode.removeChild(el)});
   Array.from(ed.querySelectorAll('del.track-del')).forEach(function(el){var p=el.parentNode;while(el.firstChild)p.insertBefore(el.firstChild,el);p.removeChild(el)});
-  updateStatusBar();
+  try{docNoteEdit()}catch(e){}updateStatusBar();
 }
 /* Chế độ đọc: ẩn ribbon + dải tab, chỉ còn trang giấy; nút Thoát hiện cố định. */
 var readingOn=false;
@@ -3456,6 +4282,106 @@ function toggleSplitView(){
 
 /* ---------- Excel 1.4: định dạng ô / bảng tạm / biểu đồ / lọc / tách cột ---------- */
 var cellFmt={};
+var wbSheets=[{name:'Sheet1',raw:null,fmt:null,merges:[]}];
+var activeSheetIndex=0;
+function currentSheetName(){return (wbSheets&&wbSheets[activeSheetIndex]&&wbSheets[activeSheetIndex].name)||'Sheet1'}
+function syncCurrentToWb(){
+  if(!wbSheets.length)wbSheets=[{name:'Sheet1',raw:sheetRaw,fmt:cellFmt,merges:sheetMerges}];
+  if(activeSheetIndex<0)activeSheetIndex=0;
+  if(activeSheetIndex>=wbSheets.length)activeSheetIndex=wbSheets.length-1;
+  wbSheets[activeSheetIndex].raw=sheetRaw;
+  wbSheets[activeSheetIndex].fmt=cellFmt;
+  wbSheets[activeSheetIndex].merges=sheetMerges;
+  wbSheets[activeSheetIndex].locked=sheetLocked;
+  wbSheets[activeSheetIndex].freeze=freezeTopRow;
+  wbSheets[activeSheetIndex].grid=gridOn;
+}
+function workbookSnapshotSheets(){
+  syncCurrentToWb();
+  return wbSheets.map(function(sh){
+    return {name:sh.name,raw:sh.raw,fmt:sh.fmt||{},merges:normalizeMerges(sh.merges||[]),locked:!!sh.locked,freeze:!!sh.freeze,grid:sh.grid!==false};
+  });
+}
+function loadSheetFromWb(idx){
+  if(!wbSheets.length)return;
+  if(idx<0)idx=0;if(idx>=wbSheets.length)idx=wbSheets.length-1;
+  activeSheetIndex=idx;
+  var sh=wbSheets[idx];
+  sheetRaw=normalizeSheetRaw(sh.raw);
+  cellFmt=sh.fmt||{};
+  sheetMerges=normalizeMerges(sh.merges||[]);
+  sheetLocked=!!sh.locked;freezeTopRow=!!sh.freeze;
+  if(sh.grid!==undefined)gridOn=sh.grid!==false;
+  dupKeys={};sheetFilter=null;
+  var gw=$('sheetWrap');if(gw){if(gridOn)gw.classList.remove('nogrid');else gw.classList.add('nogrid')}
+  var fw=$('sheetWrap');if(fw)fw.classList.toggle('freeze-first',freezeTopRow);
+}
+function switchSheet(idx){
+  if(idx===activeSheetIndex)return;
+  syncCurrentToWb();
+  loadSheetFromWb(idx);
+  renderSheetTabs();renderSheet();updateStatusBar();
+}
+function unusedSheetName(base){
+  var names={};wbSheets.forEach(function(sh){names[String(sh.name).toLowerCase()]=true});
+  if(!names[String(base).toLowerCase()])return base;
+  var i=2;
+  while(names[String(base+i).toLowerCase()])i++;
+  return base+i;
+}
+/* Ban 1.7: Excel cam ky tu []:*?/\ trong ten trang (mo file se loi),
+   nen chan ngay khi tao/doi ten, bao ro chu khong de file hong. */
+function sheetNameBad(nm){return /[\[\]:*?\/\\]/.test(nm)}
+function addSheet(name){
+  if(name&&sheetNameBad(name)){alert('Tên trang tính không được chứa ký tự: [ ] : * ? / \\');return false}
+  if(wbSheets.length>=20){alert('Đã đủ 20 trang tính.');return false}
+  syncCurrentToWb();
+  var nm=name||unusedSheetName('Sheet'+(wbSheets.length+1));
+  pushSheetHistory();
+  wbSheets.push({name:nm,raw:Array.from({length:SHEET_ROWS},function(){return Array(SHEET_COLS).fill('')}),fmt:{},merges:[],locked:false,freeze:false,grid:true});
+  loadSheetFromWb(wbSheets.length-1);
+  renderSheetTabs();renderSheet();updateStatusBar();
+  return true;
+}
+function addSheetPrompt(){
+  var nm=prompt('Nhập tên trang tính mới:','Sheet'+(wbSheets.length+1));
+  if(nm==null)return;
+  nm=nm.trim();if(!nm)nm=unusedSheetName('Sheet'+(wbSheets.length+1));
+  var exists=wbSheets.some(function(sh){return String(sh.name).toLowerCase()===nm.toLowerCase()});
+  if(exists){alert('Đã có trang tính tên “'+nm+'”. Đặt tên khác.');return}
+  addSheet(nm);
+}
+function renameSheetPrompt(){
+  var nm=prompt('Đổi tên trang tính “'+currentSheetName()+'” thành:',currentSheetName());
+  if(nm==null)return;
+  nm=nm.trim();if(!nm){alert('Tên trang tính không được để trống.');return}
+  if(sheetNameBad(nm)){alert('Tên trang tính không được chứa ký tự: [ ] : * ? / \\');return}
+  var exists=wbSheets.some(function(sh,i){return i!==activeSheetIndex&&String(sh.name).toLowerCase()===nm.toLowerCase()});
+  if(exists){alert('Đã có trang tính tên “'+nm+'”. Đặt tên khác.');return}
+  pushSheetHistory();
+  wbSheets[activeSheetIndex].name=nm;
+  renderSheetTabs();renderSheet();updateStatusBar();
+}
+function deleteSheetTab(){
+  if(wbSheets.length<=1){alert('Bảng tính cần ít nhất 1 trang — không xóa trang cuối cùng này.');return}
+  if(!confirm('Xóa trang tính “'+currentSheetName()+'” và toàn bộ nội dung của nó?'))return;
+  pushSheetHistory();
+  wbSheets.splice(activeSheetIndex,1);
+  loadSheetFromWb(Math.min(activeSheetIndex,wbSheets.length-1));
+  renderSheetTabs();renderSheet();updateStatusBar();
+}
+function renderSheetTabs(){
+  var el=$('sheettabs');if(!el)return;
+  var btns=wbSheets.map(function(sh,i){
+    return '<button class="sheet-tab'+(i===activeSheetIndex?' active':'')+'" onclick="switchSheet('+i+')">'+esc(sh.name)+'</button>';
+  }).join('');
+  var note=(wbSheets.length>1)?('Bảng tính này có '+wbSheets.length+' trang tính.'):('Bảng tính này dùng một trang tính ('+esc(currentSheetName())+').');
+  el.innerHTML=btns+'<button class="sheet-tab" onclick="addSheetPrompt()" title="Thêm trang tính">＋</button>'
+    +'<button class="sheet-tab" onclick="renameSheetPrompt()">Đổi tên trang</button>'
+    +'<button class="sheet-tab" onclick="deleteSheetTab()">Xóa trang này</button>'
+    +'<span class="small" id="sheetTabNote">'+note+'</span>';
+}
+
 function cellFmtKey(r,c){return r+','+c}
 function getCellFmt(r,c){var k=cellFmtKey(r,c);if(!cellFmt[k])cellFmt[k]={};return cellFmt[k]}
 var cellClip=null;
@@ -3495,11 +4421,11 @@ function changeCellDecimals(delta){if(sheetLocked){alert('Trang tính đang đư
 function clearCellFmt(){if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}pushSheetHistory();delete cellFmt[cellFmtKey(selCell.r,selCell.c)];renderSheet()}
 function insertRowBelow(){
   if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}
-  pushSheetHistory();shiftCellFmtRows(selCell.r+1,1);sheetRaw.splice(selCell.r+1,0,Array(SHEET_COLS).fill(''));sheetRaw.length=SHEET_ROWS;renderSheet();
+  pushSheetHistory();shiftCellFmtRows(selCell.r+1,1);shiftMergesRows(selCell.r+1,1);sheetRaw.splice(selCell.r+1,0,Array(SHEET_COLS).fill(''));sheetRaw.length=SHEET_ROWS;renderSheet();
 }
 function insertColRight(){
   if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}
-  pushSheetHistory();shiftCellFmtCols(selCell.c+1,1);
+  pushSheetHistory();shiftCellFmtCols(selCell.c+1,1);shiftMergesCols(selCell.c+1,1);
   sheetRaw.forEach(function(row){row.splice(selCell.c+1,0,'');row.length=SHEET_COLS;});
   renderSheet();
 }
@@ -3558,6 +4484,9 @@ function removeDuplicates(){
     });
   });
   cellFmt=nf2;dupKeys={};
+  var mapDup=[];kept.forEach(function(oi,ni){mapDup[oi]=ni});
+  for(var rd=SHEET_ROWS-1;rd>=0;rd--)if(mapDup[rd]===undefined)mapDup[rd]=-1;
+  remapMergesAfterRowReorder(mapDup);
   sheetRaw=out.slice(0,SHEET_ROWS);
   renderSheet();
   alert('Đã xóa các hàng trùng nhau hoàn toàn (giữ lại hàng đầu tiên).');
@@ -3697,11 +4626,20 @@ function insertSlideComment(){
   try{renderRibbonTabs();switchApp('word');renderRuler();syncRuler();updateStatusBar();}catch(e){}
   if(window.addEventListener)window.addEventListener('resize',function(){syncRuler();layoutRibbon();});
   if(document.fonts&&document.fonts.ready)document.fonts.ready.then(function(){layoutRibbon()});
-  var ed=$('editor');if(ed&&ed.addEventListener)ed.addEventListener('input',function(){updateStatusBar();});
+  var ed=$('editor');if(ed&&ed.addEventListener)ed.addEventListener('input',function(){try{docNoteEdit()}catch(e){}updateStatusBar();});
+  try{docHistoryReset()}catch(e){}
   document.addEventListener('keydown',function(e){
     if(!(e.ctrlKey||e.metaKey))return;
     var k=(e.key||'').toLowerCase();
     if(k==='s'){e.preventDefault();saveCurrentApp();return;}
+    if(k==='z'||k==='y'){
+      var ae=document.activeElement;var tg=ae&&ae.tagName?ae.tagName.toLowerCase():'';
+      if(tg==='input'||tg==='textarea')return;
+      e.preventDefault();
+      if(k==='z'){if(e.shiftKey)redo();else undo();}
+      else redo();
+      return;
+    }
     if(document.activeElement===$('editor')){
       if(k==='b'){e.preventDefault();cmd('bold');}
       else if(k==='i'){e.preventDefault();cmd('italic');}
