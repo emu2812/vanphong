@@ -4,109 +4,323 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Văn phòng của Bùi — Bản web</title>
-<meta name="description" content="Văn phòng của Bùi: soạn văn bản, bảng tính, trình chiếu, PDF, dịch, quản lý file. Chạy trên iPhone/iPad qua Safari, cài được như PWA khi phục vụ qua https.">
+<meta name="description" content="Văn phòng của Bùi: soạn văn bản, bảng tính, trình chiếu, PDF, dịch, quản lý file. Khung hình theo Office bản desktop Windows, chạy trên trình duyệt, cài được như PWA khi phục vụ qua https.">
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0b6fa4">
+<meta name="theme-color" content="#2b579a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="apple-touch-icon" href="icon.svg">
 <link rel="stylesheet" href="style.css">
-<!-- Font chữ: CHỈ 5 font đã kiểm chứng có subset vietnamese trên Google Fonts.
-     Google Fonts tự trả unicode-range cho tiếng Việt; xem phần "Kiểm chứng font" trong Cài đặt. -->
+<!-- Font mặc định: Carlito qua Google Fonts (font mở, metric tương đương Calibri, có subset vietnamese).
+     Các font đã kiểm chứng khác: Be Vietnam Pro, Inter, Roboto, Noto Sans, Noto Serif. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;700&family=Inter:wght@400;700&family=Roboto:wght@400;700&family=Noto+Sans:wght@400;700&family=Noto+Serif:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Carlito:ital,wght@0,400;0,700;1,400;1,700&family=Be+Vietnam+Pro:wght@400;700&family=Inter:wght@400;700&family=Roboto:wght@400;700&family=Noto+Sans:wght@400;700&family=Noto+Serif:wght@400;700&display=swap" rel="stylesheet">
 </head>
-<body>
-<header>
-  <h1>📄 Văn phòng của Bùi — Bản web</h1>
-  <p>Bản web cho iPhone/iPad, mở bằng Safari. Không có nội dung mẫu sẵn, không thu thập dữ liệu, không nhúng key/secret. File luôn lưu ở máy trước; chỉ khi có tài khoản và có mạng mới đồng bộ.</p>
-  <div id="authBar">Chưa đăng nhập. Vào mục <b>Đăng nhập &amp; Đồng bộ</b> để đăng nhập ngay trong trang này.</div>
-  <p class="small">PWA: khi trang được phục vụ qua https, Safari → Chia sẻ → Thêm vào Màn hình chính để dùng như app. Service worker không chạy ở chế độ file://.</p>
+<body class="app-word">
+<!-- ============ THANH TIÊU ĐỀ KIỂU OFFICE WINDOWS ============
+     Màu theo từng món: Word xanh dương, Excel xanh lá, PowerPoint cam đỏ.
+     Quick Access Toolbar: Lưu, Hoàn tác, Làm lại. Tiêu đề: tên app + tên file + trạng thái. -->
+<header id="titlebar">
+  <div id="qat" role="toolbar" aria-label="Thanh công cụ truy cập nhanh">
+    <button onclick="saveCurrentApp()" title="Lưu (Ctrl+S)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h11l3 3v15H5z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v6h8V3M8 21v-7h8v7" fill="none" stroke="currentColor" stroke-width="1.8"/></svg><span>Lưu</span></button>
+    <button onclick="undo()" title="Hoàn tác"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5L3 10l5 5M3 10h11a5 5 0 0 1 0 10h-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>Hoàn tác</span></button>
+    <button onclick="redo()" title="Làm lại"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 5l5 5-5 5M21 10H10a5 5 0 0 0 0 10h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>Làm lại</span></button>
+  </div>
+  <div id="apptitle"><span id="appName">Word</span><span class="titsep"> — </span><span id="docTitle">Tài liệu chưa đặt tên</span><span id="saveState"> • Chưa lưu</span></div>
+  <nav id="appswitch" aria-label="Chọn ứng dụng">
+    <button data-app="word" onclick="switchApp('word')" class="active">Word</button>
+    <button data-app="excel" onclick="switchApp('excel')">Excel</button>
+    <button data-app="ppt" onclick="switchApp('ppt')">PowerPoint</button>
+    <button data-app="pdf" onclick="switchApp('pdf')">PDF &amp; OCR</button>
+    <button data-app="translate" onclick="switchApp('translate')">Dịch</button>
+    <button data-app="files" onclick="switchApp('files')">Quản lý file</button>
+    <button data-app="auth" onclick="switchApp('auth')">Đăng nhập</button>
+    <button data-app="settings" onclick="switchApp('settings')">Cài đặt</button>
+  </nav>
 </header>
-<nav id="tabs" aria-label="Các mục">
-  <button data-tab="editor" class="active">Soạn văn bản</button>
-  <button data-tab="sheet">Bảng tính</button>
-  <button data-tab="slides">Trình chiếu</button>
-  <button data-tab="pdf">PDF &amp; OCR &amp; Chụp ảnh</button>
-  <button data-tab="translate">Dịch</button>
-  <button data-tab="files">Quản lý file</button>
-  <button data-tab="auth">Đăng nhập &amp; Đồng bộ</button>
-  <button data-tab="settings">Cài đặt</button>
-</nav>
+<!-- Hàng thứ hai: dải TAB ribbon. Nút Tệp mở khung Backstage, các tab còn lại đổi panel lệnh bên dưới.
+     Tab hiển thị theo từng món (Word / Excel / PowerPoint) — xem renderRibbonTabs trong app.js. -->
+<nav id="ribbonTabs" aria-label="Dải tab ribbon"></nav>
+<!-- Hàng thứ ba: ribbon lệnh theo nhóm (nhóm có tên, lệnh có icon ở trên + chữ ở dưới, nhóm cách nhau bằng vạch ngăn).
+     Ribbon cuộn ngang được trên điện thoại; nút tối thiểu 48px để bấm bằng ngón tay. -->
+<div id="ribbon" aria-label="Dải lệnh ribbon">
+
+  <!-- ===== WORD ===== -->
+  <div class="rpanel" id="rp-word-home" data-app="word" data-tab="home">
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn wide" onclick="openFontSheet()"><span class="ricon" id="fontLabel">Carlito</span><span class="rlabel">Phông chữ</span></button>
+      <button class="rbtn" onclick="openSizeSheet()"><span class="ricon">11</span><span class="rlabel">Cỡ chữ</span></button>
+      <button class="rbtn" onclick="cmd('bold')" title="Đậm (Ctrl+B)"><span class="ricon"><b>B</b></span><span class="rlabel">Đậm</span></button>
+      <button class="rbtn" onclick="cmd('italic')" title="Nghiêng (Ctrl+I)"><span class="ricon"><i>I</i></span><span class="rlabel">Nghiêng</span></button>
+      <button class="rbtn" onclick="cmd('underline')" title="Gạch chân (Ctrl+U)"><span class="ricon"><u>U</u></span><span class="rlabel">Gạch chân</span></button>
+      <button class="rbtn" onclick="cmd('strikeThrough')" title="Gạch ngang"><span class="ricon"><s>S</s></span><span class="rlabel">Gạch ngang</span></button>
+      <button class="rbtn" onclick="openColorSheet('fore')"><span class="ricon" style="color:#c00000">A</span><span class="rlabel">Màu chữ</span></button>
+      <button class="rbtn" onclick="openColorSheet('hilite')"><span class="ricon" style="background:#ffeb3b">A</span><span class="rlabel">Tô sáng</span></button>
+    </div><div class="glabel">Phông chữ</div></div>
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="cmd('insertUnorderedList')"><span class="ricon">• ≡</span><span class="rlabel">Gạch đầu dòng</span></button>
+      <button class="rbtn" onclick="openHeadingSheet()"><span class="ricon">¶</span><span class="rlabel">Tiêu đề</span></button>
+      <button class="rbtn" onclick="cmd('justifyLeft')"><span class="ricon">≡</span><span class="rlabel">Trái</span></button>
+      <button class="rbtn" onclick="cmd('justifyCenter')"><span class="ricon">≡</span><span class="rlabel">Giữa</span></button>
+      <button class="rbtn" onclick="cmd('justifyRight')"><span class="ricon">≡</span><span class="rlabel">Phải</span></button>
+      <button class="rbtn" onclick="cmd('justifyFull')"><span class="ricon">≡</span><span class="rlabel">Đều</span></button>
+      <button class="rbtn" onclick="openLineSheet()"><span class="ricon">↕</span><span class="rlabel">Cách dòng</span></button>
+    </div><div class="glabel">Đoạn</div></div>
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="openDocSheet()"><span class="ricon">▤</span><span class="rlabel">Mở tài liệu</span></button>
+      <button class="rbtn" onclick="saveDoc()"><span class="ricon">Lưu</span><span class="rlabel">Lưu vào máy</span></button>
+      <button class="rbtn" onclick="exportDocx()"><span class="ricon">.docx</span><span class="rlabel">Xuất .docx</span></button>
+      <button class="rbtn" onclick="exportTxt()"><span class="ricon">.txt</span><span class="rlabel">Xuất .txt</span></button>
+    </div><div class="glabel">Tệp</div></div>
+  </div>
+  <div class="rpanel" id="rp-word-insert" data-app="word" data-tab="insert">
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="insertTableIntoDoc()"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3 10h18M3 16h18M9 4v16M15 4v16" stroke="currentColor" stroke-width="1.2"/></svg></span><span class="rlabel">Bảng 3×3</span></button>
+      <button class="rbtn" onclick="pickDocImage()"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="9" cy="10" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4 19l5-5 3 3 4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span><span class="rlabel">Ảnh</span></button>
+    </div><div class="glabel">Chèn</div></div>
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="insertDateIntoDoc()"><span class="ricon">31/12</span><span class="rlabel">Ngày hôm nay</span></button>
+      <button class="rbtn" onclick="insertHRuleIntoDoc()"><span class="ricon">――</span><span class="rlabel">Đường kẻ</span></button>
+      <button class="rbtn" onclick="insertPageBreakIntoDoc()"><span class="ricon">↲</span><span class="rlabel">Ngắt trang</span></button>
+    </div><div class="glabel">Nội dung</div></div>
+  </div>
+  <div class="rpanel" id="rp-word-design" data-app="word" data-tab="design">
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="setPageBg('#ffffff')"><span class="ricon" style="background:#fff;border:1px solid #999">&nbsp;</span><span class="rlabel">Nền trắng</span></button>
+      <button class="rbtn" onclick="setPageBg('#fdf6e3')"><span class="ricon" style="background:#fdf6e3;border:1px solid #999">&nbsp;</span><span class="rlabel">Nền kem</span></button>
+      <button class="rbtn" onclick="setPageBg('#eaf3fb')"><span class="ricon" style="background:#eaf3fb;border:1px solid #999">&nbsp;</span><span class="rlabel">Nền xanh nhạt</span></button>
+    </div><div class="glabel">Màu nền trang</div></div>
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="applyFont('Carlito')"><span class="ricon">Aa</span><span class="rlabel">Carlito mặc định</span></button>
+    </div><div class="glabel">Phông chủ đề</div></div>
+  </div>
+  <div class="rpanel" id="rp-word-layout" data-app="word" data-tab="layout">
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="setPageMargins('rong')"><span class="ricon">▭</span><span class="rlabel">Lề rộng</span></button>
+      <button class="rbtn" onclick="setPageMargins('vua')"><span class="ricon">▭</span><span class="rlabel">Lề vừa</span></button>
+      <button class="rbtn" onclick="setPageMargins('hep')"><span class="ricon">▭</span><span class="rlabel">Lề hẹp</span></button>
+    </div><div class="glabel">Lề trang</div></div>
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="setPageSize('A4')"><span class="ricon">A4</span><span class="rlabel">Khổ A4</span></button>
+      <button class="rbtn" onclick="setPageSize('A5')"><span class="ricon">A5</span><span class="rlabel">Khổ A5</span></button>
+      <button class="rbtn" onclick="setPageOrientation('ngang')"><span class="ricon">▬</span><span class="rlabel">Trang ngang</span></button>
+      <button class="rbtn" onclick="setPageOrientation('doc')"><span class="ricon">▮</span><span class="rlabel">Trang dọc</span></button>
+    </div><div class="glabel">Khổ giấy</div></div>
+  </div>
+  <div class="rpanel" id="rp-word-ref" data-app="word" data-tab="ref">
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="insertTOC()"><span class="ricon">☰</span><span class="rlabel">Mục lục</span></button>
+      <button class="rbtn" onclick="insertFootnoteNote()"><span class="ricon">1*</span><span class="rlabel">Chú thích</span></button>
+    </div><div class="glabel">Tham chiếu</div></div>
+  </div>
+  <div class="rpanel" id="rp-word-review" data-app="word" data-tab="review">
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="toggleSpellcheck()"><span class="ricon">ABC ✓</span><span class="rlabel">Chính tả</span></button>
+      <button class="rbtn" onclick="insertCommentPara()"><span class="ricon">✎</span><span class="rlabel">Nhận xét</span></button>
+      <button class="rbtn" onclick="translateSelection()"><span class="ricon">A→B</span><span class="rlabel">Dịch đoạn chọn</span></button>
+    </div><div class="glabel">Xem lại</div></div>
+  </div>
+  <div class="rpanel" id="rp-word-view" data-app="word" data-tab="view">
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="toggleRuler()"><span class="ricon">▤</span><span class="rlabel">Thước</span></button>
+      <button class="rbtn" onclick="setZoom(100)"><span class="ricon">100%</span><span class="rlabel">Thu phóng 100%</span></button>
+    </div><div class="glabel">Xem</div></div>
+  </div>
+
+  <!-- ===== EXCEL ===== -->
+  <div class="rpanel" id="rp-excel-home" data-app="excel" data-tab="home">
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="insertRowAbove()"><span class="ricon">+ Hàng</span><span class="rlabel">Chèn hàng trên</span></button>
+      <button class="rbtn" onclick="insertColLeft()"><span class="ricon">+ Cột</span><span class="rlabel">Chèn cột trái</span></button>
+      <button class="rbtn" onclick="deleteRow()"><span class="ricon">− Hàng</span><span class="rlabel">Xóa hàng</span></button>
+      <button class="rbtn" onclick="deleteCol()"><span class="ricon">− Cột</span><span class="rlabel">Xóa cột</span></button>
+      <button class="rbtn" onclick="clearCell()"><span class="ricon">✕</span><span class="rlabel">Xóa ô</span></button>
+    </div><div class="glabel">Ô</div></div>
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="insertFormula('SUM')"><span class="ricon">Σ</span><span class="rlabel">SUM</span></button>
+      <button class="rbtn" onclick="insertFormula('AVERAGE')"><span class="ricon">Ø</span><span class="rlabel">AVERAGE</span></button>
+      <button class="rbtn" onclick="insertFormula('COUNT')"><span class="ricon">#</span><span class="rlabel">COUNT</span></button>
+      <button class="rbtn" onclick="insertFormula('MAX')"><span class="ricon">▲</span><span class="rlabel">MAX</span></button>
+      <button class="rbtn" onclick="insertFormula('MIN')"><span class="ricon">▼</span><span class="rlabel">MIN</span></button>
+    </div><div class="glabel">Công thức</div></div>
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="saveSheet()"><span class="ricon">Lưu</span><span class="rlabel">Lưu vào máy</span></button>
+      <button class="rbtn" onclick="exportXlsx()"><span class="ricon">.xlsx</span><span class="rlabel">Xuất .xlsx</span></button>
+      <button class="rbtn" onclick="exportCsv()"><span class="ricon">.csv</span><span class="rlabel">Xuất .csv</span></button>
+    </div><div class="glabel">Tệp</div></div>
+  </div>
+  <div class="rpanel" id="rp-excel-insert" data-app="excel" data-tab="insert">
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="insertRowAbove()"><span class="ricon">+ Hàng</span><span class="rlabel">Chèn hàng</span></button>
+      <button class="rbtn" onclick="insertColLeft()"><span class="ricon">+ Cột</span><span class="rlabel">Chèn cột</span></button>
+    </div><div class="glabel">Ô</div></div>
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="insertDateIntoCell()"><span class="ricon">31/12</span><span class="rlabel">Ngày hôm nay</span></button>
+    </div><div class="glabel">Nội dung</div></div>
+  </div>
+  <div class="rpanel" id="rp-excel-layout" data-app="excel" data-tab="layout">
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="toggleGridlines()"><span class="ricon">▦</span><span class="rlabel">Đường lưới</span></button>
+      <button class="rbtn" onclick="setZoom(100)"><span class="ricon">100%</span><span class="rlabel">Thu phóng 100%</span></button>
+    </div><div class="glabel">Bố trí trang</div></div>
+  </div>
+  <div class="rpanel" id="rp-excel-formulas" data-app="excel" data-tab="formulas">
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="insertFormula('SUM')"><span class="ricon">Σ</span><span class="rlabel">SUM</span></button>
+      <button class="rbtn" onclick="insertFormula('AVERAGE')"><span class="ricon">Ø</span><span class="rlabel">AVERAGE</span></button>
+      <button class="rbtn" onclick="insertFormula('COUNT')"><span class="ricon">#</span><span class="rlabel">COUNT</span></button>
+      <button class="rbtn" onclick="insertFormula('MAX')"><span class="ricon">▲</span><span class="rlabel">MAX</span></button>
+      <button class="rbtn" onclick="insertFormula('MIN')"><span class="ricon">▼</span><span class="rlabel">MIN</span></button>
+    </div><div class="glabel">Hàm</div></div>
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="showFormulaHelp()"><span class="ricon">fx ?</span><span class="rlabel">Cách viết công thức</span></button>
+    </div><div class="glabel">Trợ giúp</div></div>
+  </div>
+  <div class="rpanel" id="rp-excel-data" data-app="excel" data-tab="data">
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="sortSheet('asc')"><span class="ricon">A→Z</span><span class="rlabel">Sắp xếp tăng</span></button>
+      <button class="rbtn" onclick="sortSheet('desc')"><span class="ricon">Z→A</span><span class="rlabel">Sắp xếp giảm</span></button>
+    </div><div class="glabel">Sắp xếp</div></div>
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="triggerImportCsv()"><span class="ricon">.csv</span><span class="rlabel">Nhập CSV</span></button>
+    </div><div class="glabel">Lấy dữ liệu</div></div>
+  </div>
+  <div class="rpanel" id="rp-excel-review" data-app="excel" data-tab="review">
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="toggleSheetLock()"><span class="ricon">Khóa</span><span class="rlabel">Bảo vệ trang tính</span></button>
+      <button class="rbtn" onclick="gotoTab('translate')"><span class="ricon">A→B</span><span class="rlabel">Dịch</span></button>
+    </div><div class="glabel">Xem lại</div></div>
+  </div>
+  <div class="rpanel" id="rp-excel-view" data-app="excel" data-tab="view">
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="toggleGridlines()"><span class="ricon">▦</span><span class="rlabel">Đường lưới</span></button>
+      <button class="rbtn" onclick="setZoom(100)"><span class="ricon">100%</span><span class="rlabel">Thu phóng 100%</span></button>
+    </div><div class="glabel">Xem</div></div>
+  </div>
+
+  <!-- ===== POWERPOINT ===== -->
+  <div class="rpanel" id="rp-ppt-home" data-app="ppt" data-tab="home">
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="addSlide()"><span class="ricon">+ Slide</span><span class="rlabel">Slide mới</span></button>
+      <button class="rbtn" onclick="deleteCurrentSlide()"><span class="ricon">− Slide</span><span class="rlabel">Xóa slide này</span></button>
+      <button class="rbtn" onclick="moveCurrentSlide(-1)"><span class="ricon">↑</span><span class="rlabel">Slide lên</span></button>
+      <button class="rbtn" onclick="moveCurrentSlide(1)"><span class="ricon">↓</span><span class="rlabel">Slide xuống</span></button>
+    </div><div class="glabel">Slide</div></div>
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="saveDeck()"><span class="ricon">Lưu</span><span class="rlabel">Lưu vào máy</span></button>
+      <button class="rbtn" onclick="exportPptx()"><span class="ricon">.pptx</span><span class="rlabel">Xuất .pptx</span></button>
+      <button class="rbtn primary" onclick="presentDeck()"><span class="ricon">▶</span><span class="rlabel">Trình chiếu</span></button>
+    </div><div class="glabel">Tệp</div></div>
+  </div>
+  <div class="rpanel" id="rp-ppt-insert" data-app="ppt" data-tab="insert">
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="pickSlideImage(currentSlide)"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="9" cy="10" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4 19l5-5 3 3 4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span><span class="rlabel">Ảnh</span></button>
+      <button class="rbtn" onclick="insertDateBullet()"><span class="ricon">31/12</span><span class="rlabel">Ngày hôm nay</span></button>
+    </div><div class="glabel">Chèn</div></div>
+  </div>
+  <div class="rpanel" id="rp-ppt-design" data-app="ppt" data-tab="design">
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="setSlideBg('#ffffff')"><span class="ricon" style="background:#fff;border:1px solid #999">&nbsp;</span><span class="rlabel">Nền trắng</span></button>
+      <button class="rbtn" onclick="setSlideBg('#eaf3fb')"><span class="ricon" style="background:#eaf3fb;border:1px solid #999">&nbsp;</span><span class="rlabel">Nền xanh nhạt</span></button>
+      <button class="rbtn" onclick="setSlideBg('#fff4d6')"><span class="ricon" style="background:#fff4d6;border:1px solid #999">&nbsp;</span><span class="rlabel">Nền vàng nhạt</span></button>
+      <button class="rbtn" onclick="setSlideBg('#e6f4ea')"><span class="ricon" style="background:#e6f4ea;border:1px solid #999">&nbsp;</span><span class="rlabel">Nền xanh lá nhạt</span></button>
+    </div><div class="glabel">Màu nền slide</div></div>
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="setSlideSize('16:9')"><span class="ricon">16:9</span><span class="rlabel">Màn hình rộng</span></button>
+      <button class="rbtn" onclick="setSlideSize('4:3')"><span class="ricon">4:3</span><span class="rlabel">Màn hình thường</span></button>
+    </div><div class="glabel">Cỡ slide</div></div>
+  </div>
+  <div class="rpanel" id="rp-ppt-transitions" data-app="ppt" data-tab="transitions">
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="setTransition('none')"><span class="ricon">—</span><span class="rlabel">Không hiệu ứng</span></button>
+      <button class="rbtn" onclick="setTransition('fade')"><span class="ricon">◐</span><span class="rlabel">Mờ dần</span></button>
+      <button class="rbtn" onclick="setTransition('slide')"><span class="ricon">→</span><span class="rlabel">Trượt ngang</span></button>
+    </div><div class="glabel">Hiệu ứng chuyển slide</div></div>
+  </div>
+  <div class="rpanel" id="rp-ppt-show" data-app="ppt" data-tab="show">
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn primary" onclick="presentDeck()"><span class="ricon">▶</span><span class="rlabel">Từ đầu</span></button>
+      <button class="rbtn" onclick="presentFromCurrent()"><span class="ricon">▶▸</span><span class="rlabel">Từ slide này</span></button>
+      <button class="rbtn" onclick="exitPresent()"><span class="ricon">✕</span><span class="rlabel">Kết thúc</span></button>
+    </div><div class="glabel">Trình chiếu</div></div>
+  </div>
+  <div class="rpanel" id="rp-ppt-review" data-app="ppt" data-tab="review">
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="toggleDeckLock()"><span class="ricon">Khóa</span><span class="rlabel">Bảo vệ bài</span></button>
+    </div><div class="glabel">Xem lại</div></div>
+  </div>
+  <div class="rpanel" id="rp-ppt-view" data-app="ppt" data-tab="view">
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="toggleThumbs()"><span class="ricon">▤</span><span class="rlabel">Panel slide</span></button>
+      <button class="rbtn" onclick="setZoom(100)"><span class="ricon">100%</span><span class="rlabel">Thu phóng 100%</span></button>
+    </div><div class="glabel">Xem</div></div>
+  </div>
+</div>
+
 <main>
-<!-- ============ SOẠN VĂN BẢN ============ -->
+<!-- ============ WORD ============ -->
 <section id="tab-editor" class="tab active">
-  <h2>1. Soạn văn bản</h2>
-  <div class="row">
+  <div class="docbar">
+    <label for="docName">Tên tài liệu:</label>
     <input type="text" id="docName" placeholder="Tên tài liệu (ví dụ: Báo cáo tuần)" aria-label="Tên tài liệu">
-    <button class="primary" onclick="saveDoc()">💾 Lưu vào máy</button>
-    <button onclick="newDoc()">📄 Tài liệu mới</button>
+    <button onclick="saveDoc()">Lưu vào máy</button>
+    <button onclick="newDoc()">Tài liệu mới</button>
   </div>
-  <!-- CẢM ỨNG: chọn font/cỡ/màu/tiêu đề bằng bảng chọn trượt từ dưới lên (bottom sheet),
-       nút lớn ≥48px, bấm vào là gõ. Không menu chỉ hiện khi rê chuột, không chuột phải. -->
-  <div class="toolbar" role="toolbar" aria-label="Thanh công cụ soạn thảo">
-    <button onclick="openFontSheet()">🔤 Font: <span id="fontLabel">Be Vietnam Pro</span></button>
-    <button onclick="openSizeSheet()">🔎 Cỡ chữ</button>
-    <button onclick="cmd('bold')" title="Đậm"><b>B</b></button>
-    <button onclick="cmd('italic')" title="Nghiêng"><i>I</i></button>
-    <button onclick="cmd('underline')" title="Gạch chân"><u>U</u></button>
-    <button onclick="cmd('strikeThrough')" title="Gạch ngang"><s>S</s></button>
-    <button onclick="openColorSheet('fore')">🎨 Màu chữ</button>
-    <button onclick="openColorSheet('hilite')">🖍 Tô sáng</button>
-    <button onclick="openLineSheet()">↕ Khoảng cách dòng</button>
-    <button onclick="cmd('justifyLeft')">⬅ Trái</button>
-    <button onclick="cmd('justifyCenter')">⬌ Giữa</button>
-    <button onclick="cmd('justifyRight')">➡ Phải</button>
-    <button onclick="cmd('justifyFull')">☰ Đều</button>
-    <button onclick="cmd('insertUnorderedList')">• Gạch đầu dòng</button>
-    <button onclick="openHeadingSheet()">📌 Tiêu đề</button>
-    <button onclick="openDocSheet()">📂 Mở tài liệu</button>
-  </div>
-  <p class="small">Dùng bằng ngón tay: chạm vào vùng soạn thảo là gõ ngay (bàn phím chỉ để gõ chữ, không điều khiển app). Mọi nút chức năng đều bấm được bằng tay, không cần chuột hay chuột phải.</p>
-  <div id="editor" contenteditable="true" aria-label="Vùng soạn thảo"></div>
+  <p class="small">Dùng bằng ngón tay: chạm vào trang giấy là gõ ngay. Phím tắt khi có bàn phím: Ctrl+B đậm, Ctrl+I nghiêng, Ctrl+U gạch chân, Ctrl+S lưu. Font mặc định cho tài liệu mới: Carlito 11pt (tương đương Calibri 11).</p>
+  <div id="ruler" aria-hidden="true"><div id="rulerNums"></div></div>
+  <div class="workarea" id="wordWork"><div class="page" id="wordPage">
+    <div id="editor" contenteditable="true" spellcheck="true" aria-label="Vùng soạn thảo"></div>
+  </div></div>
+  <input type="file" id="docImageInput" accept="image/*" style="display:none">
   <div class="row">
-    <button onclick="exportTxt()">⬇ Xuất .txt</button>
-    <button onclick="exportDocx()">⬇ Xuất .docx</button>
-    <button onclick="translateSelection()">🌐 Dịch đoạn đang chọn rồi chèn dưới đoạn gốc</button>
+    <button onclick="exportTxt()">Xuất .txt</button>
+    <button onclick="exportDocx()">Xuất .docx</button>
+    <button onclick="translateSelection()">Dịch đoạn đang chọn rồi chèn dưới đoạn gốc</button>
   </div>
-  <p class="small">Lưu vào localStorage của trình duyệt, mở lại giữ đúng định dạng (font, cỡ, đậm/nghiêng/gạch chân/gạch ngang, màu, căn lề). Xuất .docx tối giản do trang tự tạo bằng JavaScript thuần, Word/WPS mở được.</p>
+  <p class="small">Lưu vào máy của trình duyệt, mở lại giữ đúng định dạng (font, cỡ, đậm/nghiêng/gạch chân/gạch ngang, màu, tô sáng, căn lề, danh sách, bảng). Xuất .docx dùng định dạng chuẩn Office, Word/LibreOffice mở được.</p>
   <h3>Tài liệu đã lưu trên máy</h3>
   <div id="docList"></div>
 </section>
 
-<!-- ============ BẢNG TÍNH ============ -->
+<!-- ============ EXCEL ============ -->
 <section id="tab-sheet" class="tab">
-  <h2>2. Bảng tính</h2>
-  <div class="row">
+  <div class="docbar">
+    <label for="sheetName">Tên bảng tính:</label>
     <input type="text" id="sheetName" placeholder="Tên bảng tính" aria-label="Tên bảng tính">
-    <button class="primary" onclick="saveSheet()">💾 Lưu vào máy</button>
+    <button onclick="saveSheet()">Lưu vào máy</button>
     <button onclick="newSheet()">Bảng mới</button>
-    <button onclick="exportCsv()">⬇ Xuất .csv</button>
-    <button onclick="exportXlsx()">⬇ Xuất .xlsx</button>
+    <button onclick="exportCsv()">Xuất .csv</button>
+    <button onclick="exportXlsx()">Xuất .xlsx</button>
   </div>
-  <p class="small">Dùng bằng ngón tay: <b>chạm một lần để chọn ô, chạm hai lần liên tiếp để sửa ô</b>, vuốt để cuộn bảng. Công thức hỗ trợ: <b>=SUM(A1:A3)</b>, <b>=AVERAGE(A1:A3)</b>, tham chiếu ô (=A1) và vùng. Sửa xong chạm sang ô khác là tính lại ngay. Xuất .xlsx tối giản do trang tự tạo (không cần mạng).</p>
-  <div id="sheetWrap"><table class="sheet" id="sheetTable"></table></div>
+  <p class="small">Dùng bằng ngón tay: <b>chạm một lần để chọn ô, chạm hai lần liên tiếp để sửa ô</b>, vuốt để cuộn bảng. Công thức hỗ trợ: <b>=SUM(A1:A3)</b>, <b>=AVERAGE(A1:A3)</b>, <b>=COUNT</b>, <b>=MAX</b>, <b>=MIN</b>, tham chiếu ô (=A1) và phép tính (+ − × ÷, ngoặc). Sửa xong chạm sang ô khác là tính lại ngay.</p>
+  <!-- Thanh công thức kiểu Excel: hộp tên ô + fx + ô nhập công thức/giá trị -->
+  <div id="formulabar" role="toolbar" aria-label="Thanh công thức">
+    <span id="cellAddr" aria-label="Ô đang chọn">A1</span>
+    <span id="fxMark">fx</span>
+    <input type="text" id="formulaBar" aria-label="Thanh công thức" placeholder="Nhập giá trị hoặc công thức, ví dụ =SUM(A1:A3)">
+  </div>
+  <div class="workarea" id="sheetWork"><div id="sheetWrap"><table class="sheet" id="sheetTable"></table></div></div>
+  <div id="sheettabs" role="tablist" aria-label="Các trang tính"><button class="sheet-tab active">Sheet1</button><span class="small" id="sheetTabNote">Bảng tính này dùng một trang tính (Sheet1).</span></div>
   <h3>Bảng tính đã lưu trên máy</h3>
   <div id="sheetList"></div>
 </section>
 
-<!-- ============ TRÌNH CHIẾU (bản 1.1) ============ -->
+<!-- ============ POWERPOINT ============ -->
 <section id="tab-slides" class="tab">
-  <h2>Trình chiếu</h2>
-  <p class="small">Tạo bài trình bày nhiều slide, mỗi slide có tiêu đề + nội dung gạch đầu dòng, có thể chèn ảnh. Dùng bằng ngón tay: bấm vào ô là gõ, mỗi dòng trong ô nội dung là một ý gạch đầu dòng. Lưu vào máy, mở lại được như tài liệu và bảng tính. Xuất .pptx tối giản do trang tự tạo (zip + xml bằng JavaScript thuần, không cần thư viện ngoài) — PowerPoint/WPS/LibreOffice mở được.</p>
-  <div class="row">
+  <div class="docbar">
+    <label for="deckName">Tên bài trình bày:</label>
     <input type="text" id="deckName" placeholder="Tên bài trình bày (ví dụ: Báo cáo tháng)" aria-label="Tên bài trình bày">
-    <button class="primary" onclick="saveDeck()">💾 Lưu vào máy</button>
+    <button onclick="saveDeck()">Lưu vào máy</button>
     <button onclick="newDeck()">Bài mới</button>
   </div>
   <div class="row">
-    <button class="primary" onclick="presentDeck()">▶ Trình chiếu toàn màn hình</button>
-    <button onclick="addSlide()">＋ Thêm slide</button>
-    <button onclick="exportPptx()">⬇ Xuất .pptx</button>
+    <button onclick="presentDeck()">Trình chiếu toàn màn hình</button>
+    <button onclick="addSlide()">Thêm slide</button>
+    <button onclick="exportPptx()">Xuất .pptx</button>
   </div>
-  <p class="small">Trình chiếu: bấm nút ▶ là xem toàn màn hình; <b>vuốt ngón tay sang trái/phải để chuyển slide</b>, hoặc bấm hai nút ◀ ▶ lớn ở dưới màn hình; bấm “✕ Thoát” để về lại trang soạn. Ảnh chèn vào slide được nén nhỏ (tối đa 1280px) trước khi lưu để vừa bộ nhớ trình duyệt.</p>
-  <div id="slideEditor"></div>
+  <p class="small">Trình chiếu: bấm nút trình chiếu là xem toàn màn hình; <b>vuốt ngón tay sang trái/phải để chuyển slide</b>, hoặc bấm hai nút Trước/Sau lớn ở dưới màn hình; bấm “Thoát” để về lại trang soạn. Ảnh chèn vào slide được nén nhỏ (tối đa 1280px) trước khi lưu để vừa bộ nhớ trình duyệt.</p>
+  <div id="slideLayout"><div id="slideEditor"></div></div>
   <input type="file" id="slideImageInput" accept="image/*" style="display:none">
   <h3>Bài trình bày đã lưu trên máy</h3>
   <div id="deckList"></div>
@@ -115,16 +329,16 @@
 <!-- ============ PDF / OCR / CAMERA ============ -->
 <section id="tab-pdf" class="tab">
   <h2>3. PDF, OCR và chụp ảnh tạo PDF</h2>
-  <div class="note"><b>Giới hạn bản 1.0 — đọc kỹ:</b> Chú thích (tô sáng, ghi chú, vẽ tay) chỉ lưu kèm tên file trong trình duyệt, <b>KHÔNG ghi đè vào ruột file PDF gốc</b>. Muốn giữ file gốc nguyên vẹn thì tải file gốc về; muốn giữ chú thích thì mở lại đúng file đó trong trang này.</div>
+  <div class="note"><b>Giới hạn cần đọc kỹ:</b> Chú thích (tô sáng, ghi chú, vẽ tay) chỉ lưu kèm tên file trong trình duyệt, <b>KHÔNG ghi đè vào ruột file PDF gốc</b>. Muốn giữ file gốc nguyên vẹn thì tải file gốc về; muốn giữ chú thích thì mở lại đúng file đó trong trang này.</div>
   <div class="note"><b>PDF cần mạng lần đầu:</b> xem PDF dùng pdf.js qua CDN. Nếu mất mạng, trang sẽ báo rõ “không tải được pdf.js, kiểm tra mạng rồi thử lại” chứ không hiện trang trắng khó hiểu.</div>
   <div class="row">
     <label>Chọn file PDF từ máy: <input type="file" id="pdfFile" accept="application/pdf"></label>
     <button onclick="openPdfFromList()">Mở PDF đã tạo bằng camera (nếu có)</button>
   </div>
   <div class="row">
-    <button onclick="pdfPrev()">◀ Trang trước</button>
+    <button onclick="pdfPrev()">Trang trước</button>
     <span id="pdfPageInfo">Chưa mở file nào</span>
-    <button onclick="pdfNext()">Trang sau ▶</button>
+    <button onclick="pdfNext()">Trang sau</button>
     <select id="pdfTool" aria-label="Công cụ chú thích">
       <option value="highlight">Tô sáng (kéo hình chữ nhật)</option>
       <option value="note">Ghi chú (chạm để ghi)</option>
@@ -137,37 +351,37 @@
   <div id="pdfWrap" style="display:none"><canvas id="pdfCanvas"></canvas><canvas id="pdfOverlay"></canvas></div>
 
   <h3>3a. OCR — nhận dạng chữ thành văn bản sửa được</h3>
-  <div class="note">OCR ưu tiên <b>Tesseract.js qua CDN, chạy ngay trong trình duyệt, nhận dạng vie+eng</b> (tiếng Việt có dấu + tiếng Anh). <b>Cần mạng lần đầu</b> để tải script và dữ liệu vie+eng; lần sau trình duyệt có thể dùng bản đã lưu trong bộ nhớ đệm. Nếu Tesseract.js không chạy được trên Safari, dùng phương án dự phòng OCR.space qua mạng (language vie) — cần Bùi tự tạo key miễn phí ở ocr.space rồi nhập ở Cài đặt; trang <b>không nhúng key trả phí nào</b>. Bản miễn phí của OCR.space giới hạn số lần gọi/ngày và kích thước file. <b>Không bịa kết quả OCR:</b> nhận dạng lỗi thì Bùi sửa tay trực tiếp trong ô kết quả.</div>
+  <div class="note">OCR ưu tiên <b>Tesseract.js qua CDN, chạy ngay trong trình duyệt, nhận dạng vie+eng</b> (tiếng Việt có dấu + tiếng Anh). <b>Cần mạng lần đầu</b> để tải script và dữ liệu vie+eng; lần sau trình duyệt có thể dùng bản đã lưu trong bộ nhớ đệm. Nếu Tesseract.js không chạy được, dùng phương án dự phòng OCR.space qua mạng (language vie) — cần Bùi tự tạo key miễn phí ở ocr.space rồi nhập ở Cài đặt; trang <b>không nhúng key trả phí nào</b>. Bản miễn phí của OCR.space giới hạn số lần gọi/ngày và kích thước file. <b>Không bịa kết quả OCR:</b> nhận dạng lỗi thì Bùi sửa tay trực tiếp trong ô kết quả.</div>
   <div class="row">
-    <button class="primary" onclick="ocrCurrentPage()">🔍 OCR trang PDF đang mở</button>
+    <button onclick="ocrCurrentPage()">OCR trang PDF đang mở</button>
     <label>Hoặc chọn ảnh: <input type="file" id="ocrImage" accept="image/*"></label>
-    <button onclick="ocrChosenImage()">🔍 OCR ảnh đã chọn</button>
+    <button onclick="ocrChosenImage()">OCR ảnh đã chọn</button>
   </div>
   <div id="ocrStatus" class="small"></div>
   <img id="ocrPreview" alt="" style="max-width:100%;display:none;border:1px solid #ddd">
   <label>Kết quả OCR — sửa trực tiếp tại đây:</label>
   <textarea id="ocrResult" placeholder="Kết quả nhận dạng sẽ hiện ở đây, Bùi sửa tay được."></textarea>
   <div class="row">
-    <button onclick="copyOcr()">📋 Sao chép kết quả</button>
-    <button onclick="insertOcrToDoc()">➕ Chèn vào tài liệu đang soạn</button>
-    <button class="primary" onclick="saveOcrAsDoc()">💾 Lưu thành tài liệu mới</button>
+    <button onclick="copyOcr()">Sao chép kết quả</button>
+    <button onclick="insertOcrToDoc()">Chèn vào tài liệu đang soạn</button>
+    <button onclick="saveOcrAsDoc()">Lưu thành tài liệu mới</button>
   </div>
   <div id="ocrFallback" class="note" style="display:none"></div>
 
   <h3>3b. Chụp ảnh tạo PDF thật</h3>
-  <div class="note">Chụp bằng camera (getUserMedia) hoặc nút chọn ảnh của iPhone (input capture — cách ổn định nhất trên Safari iPhone). Tạo PDF bằng <b>JavaScript thuần, tự viết mã nhúng ảnh JPEG, không cần thư viện, chạy ngoại tuyến</b> sau khi đã chụp xong. PDF tạo xong được lưu vào danh sách file để đồng bộ, và mở được bằng chế độ OCR ở mục 3a.</div>
+  <div class="note">Chụp bằng camera (getUserMedia) hoặc nút chọn ảnh của điện thoại (input capture — cách ổn định nhất trên điện thoại). Tạo PDF bằng <b>JavaScript thuần, tự viết mã nhúng ảnh JPEG, không cần thư viện, chạy ngoại tuyến</b> sau khi đã chụp xong. PDF tạo xong được lưu vào danh sách file để đồng bộ, và mở được bằng chế độ OCR ở mục 3a.</div>
   <div class="row">
-    <button onclick="openCamera()">📷 Mở camera</button>
-    <button onclick="capturePhoto()" id="captureBtn" style="display:none">📸 Chụp ảnh này</button>
+    <button onclick="openCamera()">Mở camera</button>
+    <button onclick="capturePhoto()" id="captureBtn" style="display:none">Chụp ảnh này</button>
     <button onclick="closeCamera()" id="closeCamBtn" style="display:none">Đóng camera</button>
     <label>Hoặc chọn ảnh từ máy: <input type="file" id="camFiles" accept="image/*" capture="environment" multiple></label>
   </div>
   <video id="camVideo" autoplay playsinline muted style="display:none;max-width:100%;border:1px solid #ddd"></video>
   <div id="photoList"></div>
   <div class="row">
-    <button class="primary" onclick="buildPdfFromPhotos()">📕 Tạo file PDF từ các ảnh trên</button>
-    <button onclick="downloadGeneratedPdf()" id="dlGenBtn" style="display:none">⬇ Tải PDF vừa tạo về máy</button>
-    <button onclick="openGeneratedPdfForOcr()" id="openGenBtn" style="display:none">🔍 Mở PDF vừa tạo để OCR</button>
+    <button onclick="buildPdfFromPhotos()">Tạo file PDF từ các ảnh trên</button>
+    <button onclick="downloadGeneratedPdf()" id="dlGenBtn" style="display:none">Tải PDF vừa tạo về máy</button>
+    <button onclick="openGeneratedPdfForOcr()" id="openGenBtn" style="display:none">Mở PDF vừa tạo để OCR</button>
   </div>
   <div id="camStatus" class="small"></div>
 </section>
@@ -183,7 +397,7 @@
   </div>
   <textarea id="transInput" placeholder="Nhập văn bản cần dịch…"></textarea>
   <div class="row">
-    <button class="primary" onclick="doTranslate()">🌐 Dịch</button>
+    <button onclick="doTranslate()">Dịch</button>
     <button onclick="insertTranslationBelow()">Chèn bản dịch ngay dưới đoạn gốc trong tài liệu</button>
   </div>
   <label>Kết quả:</label>
@@ -202,30 +416,31 @@
   <div id="fileList"></div>
   <h3>Tải file từ Drive / OneDrive về mở lại (ngay trong trang này)</h3>
   <div class="row">
-    <button onclick="listDriveFiles()">📂 Xem file trên Drive</button>
-    <button onclick="listOneDriveFiles()">📂 Xem file trên OneDrive</button>
+    <button onclick="listDriveFiles()">Xem file trên Drive</button>
+    <button onclick="listOneDriveFiles()">Xem file trên OneDrive</button>
   </div>
   <div id="cloudList"></div>
 </section>
 
-<!-- ============ ĐĂNG NHẬP & ĐỒNG BỘ (NGAY TRONG TRANG NÀY) ============ -->
+<!-- ============ ĐĂNG NHẬP & ĐỒNG BỘ ============ -->
 <section id="tab-auth" class="tab">
   <h2>Đăng nhập &amp; Đồng bộ — ngay trong trang này</h2>
   <p><b>Đăng nhập Google và Microsoft nằm ngay trong trang web “Văn phòng của Bùi” này, không phải app khác, không làm riêng bên ngoài.</b> Đăng nhập xong, Bùi bấm “Lên Drive” / “Lên OneDrive” ở danh sách file (mục Quản lý file) hoặc ngay dưới đây, và tải file về mở lại cũng ngay trong trang này.</p>
+  <div id="authBar">Chưa đăng nhập.</div>
   <div class="note" id="authNote"></div>
   <div class="row">
-    <button class="primary" onclick="loginGoogle()">🔵 Đăng nhập Google</button>
-    <button class="primary" onclick="loginMicrosoft()">🟦 Đăng nhập Microsoft</button>
+    <button onclick="loginGoogle()">Đăng nhập Google</button>
+    <button onclick="loginMicrosoft()">Đăng nhập Microsoft</button>
     <button onclick="logoutAll()">Đăng xuất cả hai</button>
   </div>
   <div id="authStatus" class="small"></div>
   <h3>Đồng bộ file đang chọn</h3>
   <div class="row">
-    <button onclick="syncCurrentDoc('drive')">☁ Lên Drive (tài liệu đang soạn)</button>
-    <button onclick="syncCurrentDoc('onedrive')">☁ Lên OneDrive (tài liệu đang soạn)</button>
+    <button onclick="syncCurrentDoc('drive')">Lên Drive (tài liệu đang soạn)</button>
+    <button onclick="syncCurrentDoc('onedrive')">Lên OneDrive (tài liệu đang soạn)</button>
   </div>
   <p class="small">Nguyên tắc: file luôn lưu ở máy trước. Có tài khoản và có mạng mới đồng bộ. Chưa đăng nhập mà bấm đồng bộ → file chuyển sang “Chờ đồng bộ”, đăng nhập xong bấm lại là lên.</p>
-  <p>Hướng dẫn tự đăng ký app OAuth (Bùi tự làm, không cần đưa key cho ai): <a href="Huong_dan_OAuth_Google_Microsoft.md">Huong_dan_OAuth_Google_Microsoft.md</a> — bản hướng dẫn ngắn viết riêng cho bản web này (file hướng dẫn Azure của nhánh Android chưa có trong thư mục office-app tại thời điểm giao bản web, nên bản web tự viết bản tương đương; khi nhánh Android giao file gốc, thay liên kết này bằng file đó).</p>
+  <p>Hướng dẫn tự đăng ký app OAuth (Bùi tự làm, không cần đưa key cho ai): <a href="Huong_dan_OAuth_Google_Microsoft.md">Huong_dan_OAuth_Google_Microsoft.md</a> — bản hướng dẫn ngắn viết riêng cho bản web này.</p>
 </section>
 
 <!-- ============ CÀI ĐẶT ============ -->
@@ -238,42 +453,62 @@
   <input type="text" id="msClientId" placeholder="Dán Client ID do Bùi tự đăng ký vào đây — để trống nếu chưa có">
   <label>OCR.space API key miễn phí (tùy chọn, chỉ dùng khi Tesseract.js không chạy; Bùi tự tạo ở ocr.space):</label>
   <input type="text" id="ocrSpaceKey" placeholder="Để trống nếu chưa có — trang không nhúng key nào sẵn">
-  <div class="row"><button class="primary" onclick="saveSettings()">💾 Lưu cài đặt</button></div>
+  <div class="row"><button onclick="saveSettings()">Lưu cài đặt</button></div>
   <div id="settingsStatus" class="small"></div>
 
   <h3>Kiểm chứng font tiếng Việt</h3>
-  <p>Đoạn kiểm chứng — bấm từng nút để đổi font, xem dấu có vỡ không. Danh sách cuối cùng CHỈ gồm 5 font dưới đây, vì cả 5 đều có subset <b>vietnamese</b> đã kiểm chứng trên Google Fonts (mỗi family đều trả unicode-range phủ dấu tiếng Việt; Be Vietnam Pro vốn thiết kế cho tiếng Việt). Mọi font khác không chắc hỗ trợ tiếng Việt đều đã loại. Font dự phòng hệ thống: -apple-system, “Segoe UI”, sans-serif.</p>
+  <p>Đoạn kiểm chứng — bấm từng nút để đổi font, xem dấu có vỡ không. Font mặc định là <b>Carlito</b> (metric tương đương Calibri, có subset vietnamese đã kiểm chứng). Danh sách chỉ gồm 6 font dưới đây, vì cả 6 đều có subset <b>vietnamese</b> trên Google Fonts. Font dự phòng hệ thống: -apple-system, “Segoe UI”, sans-serif.</p>
   <p id="fontTest">Tiếng Việt có dấu: à á ả ã ạ, ồ ộ ổ, ứ ự ử, đ, ê, ơ, ư — Bác sĩ Nguyễn Văn Đô đi học ở Hà Nội</p>
   <div class="row">
+    <button onclick="testFont('Carlito')">Carlito (mặc định)</button>
     <button onclick="testFont('Be Vietnam Pro')">Be Vietnam Pro</button>
     <button onclick="testFont('Inter')">Inter</button>
     <button onclick="testFont('Roboto')">Roboto</button>
     <button onclick="testFont('Noto Sans')">Noto Sans</button>
     <button onclick="testFont('Noto Serif')">Noto Serif</button>
   </div>
-  <p class="small">Cách kiểm chứng trước khi giao: (1) đối chiếu metadata Google Fonts — cả 5 family đều liệt kê subset vietnamese; (2) đoạn trên chứa đủ thanh dấu, nguyên âm đôi/triple và chữ đ; (3) nút đổi từng font áp dụng ngay lên đoạn này để Bùi nhìn bằng mắt trên iPhone thật. Lưu ý trung thực: môi trường làm bản web không có Safari iPhone thật, nên bước nhìn bằng mắt cuối cùng cần Bùi kiểm tra trên máy thật; về mặt subset thì cả 5 font đều phủ đầy đủ dấu tiếng Việt nên không font nào vỡ dấu do thiếu glyph.</p>
+  <p class="small">Cách kiểm chứng: (1) đối chiếu metadata Google Fonts — Carlito và cả 5 font còn lại đều trả unicode-range phủ dấu tiếng Việt (riêng Carlito: khối vietnamese U+1EA0–1EF9 cùng các khối Latin mở rộng); (2) đoạn trên chứa đủ thanh dấu, nguyên âm đôi và chữ đ; (3) kiểm tra bằng fontTools trên file subset vietnamese + latin của Carlito: hợp hai subset phủ đủ mọi ký tự trong đoạn kiểm chứng, không thiếu glyph nào. Bước nhìn bằng mắt cuối cùng vẫn cần Bùi kiểm tra trên máy thật.</p>
   <h3>Phần nào cần mạng, phần nào chạy ngoại tuyến</h3>
   <ul>
     <li><b>Ngoại tuyến:</b> soạn thảo, bảng tính, trình chiếu, lưu/mở lại, xuất txt/docx/csv/xlsx/pptx, chú thích PDF đã tải pdf.js, chụp ảnh tạo PDF (sau khi chụp xong).</li>
     <li><b>Cần mạng:</b> tải pdf.js lần đầu, tải Tesseract.js + dữ liệu vie+eng lần đầu, dịch MyMemory, đăng nhập và đồng bộ Drive/OneDrive, tải Google Fonts lần đầu (sau đó trình duyệt lưu đệm).</li>
   </ul>
-  <p><a href="README.md">README của bản web</a> — trong đó ghi rõ vì sao không có app App Store thật.</p>
+  <p><a href="README.md">README của bản web</a></p>
 </section>
 </main>
-<footer>Văn phòng của Bùi — bản web 1.1 • File lưu ở máy trước, đồng bộ sau • Không thu thập dữ liệu • Dùng hoàn toàn bằng cảm ứng, không cần chuột.</footer>
-<!-- Màn hình trình chiếu toàn màn hình (bản 1.1): vuốt để chuyển slide, nút lớn, nút Thoát -->
+<!-- Thanh trạng thái kiểu Office Windows: trái = thông tin tài liệu, phải = thanh trượt thu phóng -->
+<footer id="statusbar">
+  <span id="statusLeft">Trang 1 • 0 từ</span>
+  <span id="statusCenter"></span>
+  <span id="statusRight"><span id="zoomLabel">100%</span><input type="range" id="zoomSlider" min="50" max="200" value="100" step="10" aria-label="Thu phóng" oninput="setZoom(this.value)"></span>
+</footer>
+<!-- Khung Backstage khi bấm tab Tệp: Mới / Mở / Lưu / Lưu thành / Thông tin -->
+<div id="backstage" style="display:none" role="dialog" aria-label="Khung Tệp (Backstage)">
+  <div id="backstageHead"><button onclick="closeBackstage()">Quay lại tài liệu</button><h2>Tệp</h2></div>
+  <div id="backstageBody">
+    <nav id="backstageNav" aria-label="Chức năng tệp">
+      <button data-bs="new" onclick="backstageShow('new')">Mới</button>
+      <button data-bs="open" onclick="backstageShow('open')">Mở</button>
+      <button data-bs="save" onclick="backstageShow('save')">Lưu</button>
+      <button data-bs="saveas" onclick="backstageShow('saveas')">Lưu thành</button>
+      <button data-bs="info" onclick="backstageShow('info')">Thông tin</button>
+    </nav>
+    <div id="backstageContent"></div>
+  </div>
+</div>
+<!-- Màn hình trình chiếu toàn màn hình: vuốt để chuyển slide, nút lớn, nút Thoát -->
 <div id="presentOverlay" style="display:none" role="dialog" aria-label="Trình chiếu toàn màn hình">
   <div id="presentSlide" aria-live="polite"></div>
   <div id="presentControls">
-    <button onclick="presentPrev()">◀ Trước</button>
+    <button onclick="presentPrev()">Trước</button>
     <span id="presentCounter">Slide 1 / 1</span>
-    <button onclick="presentNext()">Sau ▶</button>
-    <button onclick="exitPresent()">✕ Thoát</button>
+    <button onclick="presentNext()">Sau</button>
+    <button onclick="exitPresent()">Thoát</button>
   </div>
 </div>
 <!-- Bottom sheet dùng chung -->
 <div class="sheet-backdrop" id="sheetBackdrop" onclick="closeSheet()"></div>
-<div class="sheet" id="sheet" role="dialog" aria-modal="true"><h3 id="sheetTitle">Chọn</h3><div id="sheetBody"></div><button onclick="closeSheet()">✕ Đóng</button></div>
+<div class="bsheet" id="sheet" role="dialog" aria-modal="true"><h3 id="sheetTitle">Chọn</h3><div id="sheetBody"></div><button onclick="closeSheet()">Đóng</button></div>
 <script src="app.js"></script>
 </body>
 </html>

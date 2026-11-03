@@ -1,71 +1,151 @@
-/* Văn phòng của Bùi — bản web (PWA), HTML/JS thuần, không framework build. */
-:root{--ink:#1a1a1a;--muted:#666;--line:#ddd;--accent:#0b6fa4;--bg:#fdfcf8;--warn:#fff4d6;--ok:#e6f4ea}
+/* Văn phòng của Bùi — bản web 1.2. Khung hình theo Office bản desktop Windows:
+   thanh tiêu đề màu theo app + Quick Access Toolbar, dải tab ribbon, ribbon lệnh theo nhóm,
+   vùng làm việc nền xám + trang trắng có bóng đổ, thanh trạng thái dưới đáy.
+   HTML/JS thuần, không framework build. Dùng bằng cảm ứng: nút tối thiểu 48px,
+   ribbon cuộn ngang được, không nút quan trọng nào chỉ hiện khi rê chuột. */
+:root{
+  --ink:#1a1a1a; --muted:#666; --line:#ccc; --workbg:#e6e6e6;
+  --app:#2b579a; --app-dark:#1f4080;
+}
+body.app-word{--app:#2b579a; --app-dark:#1f4080}
+body.app-excel{--app:#217346; --app-dark:#175c36}
+body.app-ppt{--app:#d24726; --app-dark:#a83a1e}
+body.app-other{--app:#404040; --app-dark:#262626}
 *{box-sizing:border-box}
-body{margin:0;font-family:"Be Vietnam Pro",-apple-system,"Segoe UI",sans-serif;color:var(--ink);background:var(--bg);line-height:1.5}
-header{padding:14px 16px;border-bottom:2px solid var(--ink);background:#fff}
-header h1{margin:0;font-size:22px}
-header p{margin:4px 0;color:var(--muted);font-size:14px}
-#authBar{margin-top:10px;padding:10px;background:var(--ok);border:1px solid #b7dfc0;border-radius:8px;font-size:14px}
-nav{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px;background:#fff;border-bottom:1px solid var(--line)}
-/* QUY TẮC CẢM ỨNG (bản web thiên về điện thoại, không chuột):
-   - Mọi nút/vùng chạm tối thiểu 48px. Không nút quan trọng nào chỉ hiện khi hover,
-     không bấm chuột phải, không thao tác cần con trỏ chính xác từng pixel.
-   - Không có quy tắc :hover nào hiện/ẩn nút hay điều khiển app. */
-nav button{min-height:48px;padding:10px 14px;border:1px solid var(--line);border-radius:20px;background:#fff;cursor:pointer;font-size:16px}
-nav button.active{background:var(--ink);color:#fff}
-main{max-width:980px;margin:0 auto;padding:16px}
-section.tab{display:none}
-section.tab.active{display:block}
-h2{font-size:20px;margin:8px 0}
-h3{font-size:17px;margin:16px 0 6px}
-.toolbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:8px;background:#fff}
-.toolbar select,.toolbar input[type=color],.toolbar input[type=text]{min-height:48px;padding:10px;border:1px solid var(--line);border-radius:6px;font-size:16px}
-.toolbar button{min-height:48px;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;font-size:16px}
-button{min-height:48px;padding:10px 14px;border-radius:8px;border:1px solid var(--line);background:#fff;cursor:pointer;font-size:16px}
-button.primary{background:var(--accent);color:#fff;border:none}
-input[type=text],input[type=url],textarea,select{min-height:48px;font-size:16px;padding:10px;border:1px solid var(--line);border-radius:6px;width:100%}
-/* Bottom sheet: bảng chọn trượt từ dưới lên, thay menu thả xuống nhỏ */
-.sheet-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;display:none}
-.sheet-backdrop.open{display:block}
-.sheet{position:fixed;left:0;right:0;bottom:0;z-index:51;background:#fff;border-radius:20px 20px 0 0;padding:16px 16px 28px;max-height:75vh;overflow:auto;box-shadow:0 -4px 24px rgba(0,0,0,.25);display:none}
-.sheet.open{display:block}
-.sheet h3{margin:0 0 12px}
-.sheet button{display:block;width:100%;min-height:56px;text-align:left;margin:6px 0;font-size:17px}
-.sheet .swatch{display:inline-block;width:28px;height:28px;border-radius:50%;vertical-align:middle;margin-right:10px;border:1px solid #ccc}
-/* Bảng tính cảm ứng: chạm để chọn ô, chạm hai lần để sửa */
-table.sheet td.cell{height:48px;min-width:88px;vertical-align:middle}
-table.sheet td.cell.selected{background:#dbeafe;outline:2px solid #0b6fa4}
-table.sheet td.cell div.cellval{padding:12px 8px;min-height:48px;font-size:16px;white-space:nowrap;overflow:hidden}
-table.sheet td.cell input{height:48px}
-#pdfWrap{touch-action:none}
-#editor{min-height:320px;padding:16px;margin-top:10px;border:1px solid var(--line);border-radius:8px;background:#fff;outline:none}
-#editor:empty:before{content:"Bắt đầu soạn thảo tại đây…";color:#999}
-.ban-dich{color:#0b6fa4;border-left:3px solid #0b6fa4;padding-left:10px}
-.note{padding:10px 12px;border-radius:8px;background:var(--warn);border:1px solid #e8c87a;font-size:14px;margin:10px 0}
-.note.ok{background:var(--ok);border-color:#b7dfc0}
+body{margin:0;font-family:"Carlito",-apple-system,"Segoe UI",sans-serif;color:var(--ink);background:#fff;line-height:1.5}
+button{min-height:48px;padding:10px 14px;border-radius:4px;border:1px solid var(--line);background:#fff;cursor:pointer;font-size:16px;font-family:inherit}
+button.primary{background:var(--app);color:#fff;border-color:var(--app)}
+input[type=text],input[type=url],textarea,select{min-height:48px;font-size:16px;padding:10px;border:1px solid var(--line);border-radius:4px;width:100%;font-family:inherit}
 textarea{min-height:110px}
+.small{font-size:13px;color:var(--muted)}
+.note{padding:10px 12px;border-radius:4px;background:#fff4d6;border:1px solid #e8c87a;font-size:14px;margin:10px 0}
+.note.ok{background:#e6f4ea;border-color:#b7dfc0}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
 .row>*{flex:1 1 auto}
-table.sheet{border-collapse:collapse;background:#fff}
-table.sheet td,table.sheet th{border:1px solid var(--line);min-width:72px;padding:0}
-table.sheet th{background:#f2f2f2;font-size:13px;padding:4px}
-table.sheet input{border:none;width:100%;padding:12px 8px;font-size:16px;min-height:48px}
-table.sheet input.formula{color:#0b6fa4}
-#sheetWrap{overflow:auto;max-height:520px;border:1px solid var(--line);border-radius:8px}
-#pdfWrap{position:relative;display:inline-block;max-width:100%;border:1px solid var(--line);background:#fff}
-#pdfCanvas,#pdfOverlay{display:block;max-width:100%;height:auto}
-#pdfOverlay{position:absolute;left:0;top:0;touch-action:none}
-.fileitem{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px;border:1px solid var(--line);border-radius:8px;background:#fff;margin:8px 0}
-.badge{padding:3px 9px;border-radius:20px;font-size:13px;background:#eee}
-.badge.drive{background:#dbeafe}.badge.onedrive{background:#e0e7ff}.badge.pending{background:var(--warn)}.badge.local{background:#eee}
-#fontTest{padding:14px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:20px}
-/* Trình chiếu (bản 1.1): thẻ slide soạn thảo + màn hình trình chiếu toàn màn hình.
-   Font trình chiếu dùng đúng 5 font đã kiểm chứng, mặc định Be Vietnam Pro, dự phòng hệ thống. */
-.slidecard{padding:14px;border:1px solid var(--line);border-radius:8px;background:#fff;margin:12px 0}
-.slidecard h3{margin:0 0 8px}
-.slidecard textarea{min-height:120px}
-.slidecard img.slideimg{max-width:100%;max-height:260px;border:1px solid var(--line);border-radius:6px;display:block;margin:8px 0}
-#presentOverlay{position:fixed;inset:0;z-index:100;background:#111;color:#fff;font-family:"Be Vietnam Pro",-apple-system,"Segoe UI",sans-serif;display:flex;flex-direction:column}
+
+/* ---------- Thanh tiêu đề (màu theo app) + Quick Access Toolbar ---------- */
+#titlebar{display:flex;flex-wrap:wrap;align-items:stretch;gap:0;background:var(--app);color:#fff;padding:0 8px}
+#qat{display:flex;gap:2px;align-items:center}
+#qat button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;min-width:56px;min-height:48px;padding:4px 8px;background:transparent;border:none;color:#fff;border-radius:0;font-size:12px}
+#qat button:hover{background:rgba(255,255,255,.18)}
+#qat svg{width:22px;height:22px;display:block}
+#apptitle{display:flex;align-items:center;gap:6px;padding:0 14px;font-size:17px;flex:1 1 auto;min-width:220px}
+#apptitle #appName{font-weight:700}
+#apptitle #saveState{font-size:13px;opacity:.85}
+#appswitch{display:flex;gap:2px;align-items:center;overflow-x:auto;flex-wrap:nowrap}
+#appswitch button{min-height:48px;border:none;background:transparent;color:#fff;border-radius:0;white-space:nowrap;font-size:15px;padding:10px 12px}
+#appswitch button.active{background:#fff;color:var(--app);font-weight:700}
+
+/* ---------- Dải tab ribbon ---------- */
+#ribbonTabs{display:flex;gap:0;overflow-x:auto;background:#fff;border-bottom:1px solid var(--line);padding:0 8px;flex-wrap:nowrap}
+#ribbonTabs button{min-height:48px;border:none;border-bottom:3px solid transparent;background:#fff;border-radius:0;white-space:nowrap;font-size:16px;padding:10px 14px;color:#333}
+#ribbonTabs button.active{border-bottom-color:var(--app);color:var(--app);font-weight:700}
+#ribbonTabs button.filetab{background:var(--app);color:#fff;font-weight:700}
+
+/* ---------- Ribbon lệnh theo nhóm ---------- */
+#ribbon{background:#fff;border-bottom:1px solid var(--line);overflow-x:auto}
+.rpanel{display:none;gap:0;padding:6px 8px;min-width:max-content}
+.rpanel.active{display:flex}
+.rgroup{display:flex;flex-direction:column;padding:2px 12px;border-right:1px solid var(--line)}
+.rgroup:last-child{border-right:none}
+.rgroup .rbtns{display:flex;gap:4px;align-items:flex-start;flex:1}
+.rgroup .glabel{text-align:center;font-size:12px;color:var(--muted);padding-top:4px}
+.rbtn{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:2px;min-width:58px;min-height:48px;padding:6px 8px;border:none;background:#fff;border-radius:4px}
+.rbtn:hover{background:#eef3fa}
+.rbtn.wide{min-width:120px}
+.rbtn .ricon{font-size:20px;line-height:1.2;min-height:24px;display:flex;align-items:center;justify-content:center}
+.rbtn .ricon svg{width:24px;height:24px}
+.rbtn .rlabel{font-size:12px;line-height:1.2;text-align:center;white-space:normal}
+.rbtn.primary{background:var(--app);color:#fff}
+
+/* ---------- Vùng làm việc: nền xám + trang trắng có bóng đổ ---------- */
+main{margin:0}
+section.tab{display:none}
+section.tab.active{display:block}
+section.tab:not(#tab-editor):not(#tab-sheet):not(#tab-slides){padding:16px;max-width:980px;margin:0 auto}
+h2{font-size:20px;margin:8px 0}
+h3{font-size:17px;margin:16px 0 6px}
+.docbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px 16px;background:#fff;border-bottom:1px solid var(--line)}
+.docbar label{font-size:15px;white-space:nowrap}
+.docbar input[type=text]{flex:1 1 220px}
+section.tab>.small{padding:0 16px}
+.workarea{background:var(--workbg);padding:24px 16px;min-height:62vh}
+#ruler{height:26px;background:#fff;border-bottom:1px solid var(--line);overflow:hidden;position:relative}
+#rulerNums{display:flex;height:100%}
+#rulerNums span{flex:0 0 37.8px;border-left:1px solid #bbb;font-size:11px;color:#888;padding-left:2px;line-height:26px}
+#wordPage{background:#fff;max-width:794px;margin:0 auto;box-shadow:0 2px 14px rgba(0,0,0,.35);min-height:1000px}
+#wordPage.size-a5{max-width:560px}
+#wordPage.landscape{max-width:1123px;min-height:794px}
+#editor{min-height:900px;padding:96px;outline:none;caret-color:var(--app);font-family:"Carlito",-apple-system,"Segoe UI",sans-serif;font-size:11pt;line-height:1.5}
+#editor:empty:before{content:"Bắt đầu soạn thảo tại đây…";color:#999}
+#editor table{border-collapse:collapse;margin:8px 0}
+#editor td,#editor th{border:1px solid #999;padding:6px 10px}
+#editor img{max-width:100%;height:auto}
+#editor hr{border:none;border-top:2px solid #999;margin:16px 0}
+.ban-dich{color:var(--app);border-left:3px solid var(--app);padding-left:10px}
+.comment-para{color:#555;border-left:3px solid #d24726;padding-left:10px;font-style:italic}
+
+/* ---------- Excel: thanh công thức, lưới, thẻ sheet ---------- */
+#formulabar{display:flex;gap:0;align-items:stretch;background:#fff;border-bottom:1px solid var(--line);padding:8px 16px}
+#cellAddr{min-width:76px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);font-weight:700;background:#f7f7f7;padding:0 10px}
+#fxMark{display:flex;align-items:center;padding:0 12px;font-style:italic;font-family:Georgia,serif;font-size:18px;color:var(--muted);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+#formulaBar{border:1px solid var(--line);border-left:none;flex:1}
+#sheetWrap{overflow:auto;max-height:560px;border:1px solid var(--line);background:#fff;box-shadow:0 2px 14px rgba(0,0,0,.25)}
+#sheetWrap.nogrid table.sheet td,#sheetWrap.nogrid table.sheet th{border-color:transparent}
+table.sheet{border-collapse:separate;border-spacing:0;background:#fff}
+table.sheet td,table.sheet th{border:1px solid #d4d4d4;min-width:88px;padding:0}
+table.sheet th{background:#f2f2f2;font-size:13px;padding:6px 4px;text-align:center}
+table.sheet thead th{position:sticky;top:0;z-index:2}
+table.sheet th.rowhead{position:sticky;left:0;z-index:1}
+table.sheet td.cell{height:48px;vertical-align:middle}
+table.sheet td.cell.selected{background:#dcefe3;outline:2px solid var(--app)}
+table.sheet td.cell div.cellval{padding:12px 8px;min-height:48px;font-size:16px;white-space:nowrap;overflow:hidden}
+table.sheet td.cell input{height:48px;border:none;width:100%;padding:12px 8px;font-size:16px;min-height:48px}
+table.sheet input.formula{color:var(--app)}
+#sheettabs{display:flex;gap:8px;align-items:center;background:#fff;border-top:1px solid var(--line);padding:8px 16px}
+.sheet-tab{min-height:48px;border:1px solid var(--line);border-bottom:none;border-radius:6px 6px 0 0;background:#f2f2f2;font-weight:700}
+.sheet-tab.active{background:#fff;border-top:3px solid var(--app)}
+
+/* ---------- PowerPoint: panel thu nhỏ + khung slide lớn ---------- */
+#slideLayout{display:flex;gap:0;background:var(--workbg);padding:16px;min-height:62vh;align-items:flex-start}
+#slideLayout.hide-thumbs #slideThumbs{display:none}
+#slideEditor{display:flex;gap:0;flex:1;align-items:flex-start;min-width:0}
+#slideThumbs{flex:0 0 200px;display:flex;flex-direction:column;gap:10px;padding-right:14px;max-height:80vh;overflow:auto}
+.thumb{text-align:left;background:#fff;border:1px solid var(--line);box-shadow:0 1px 6px rgba(0,0,0,.2);padding:10px;min-height:110px}
+.thumb.active{outline:3px solid var(--app)}
+.thumb .tnum{font-size:12px;color:var(--muted)}
+.thumb .ttitle{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.thumb .tbody{font-size:12px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.thumb .tnum,.thumb .ttitle,.thumb .tbody{display:block}
+#slideMain{flex:1;min-width:0}
+.slideframe{background:#fff;box-shadow:0 2px 14px rgba(0,0,0,.35);padding:28px;aspect-ratio:16/9;overflow:auto;display:flex;flex-direction:column}
+.slideframe.ratio-43{aspect-ratio:4/3}
+.slideframe input[type=text]{font-size:26px;font-weight:700;border:1px solid transparent}
+.slideframe input[type=text]:focus{border-color:var(--line)}
+.slideframe textarea{flex:1;font-size:18px}
+.slidecard{padding:14px;border:1px solid var(--line);border-radius:4px;background:#fff;margin:12px 0}
+.slidecard img.slideimg{max-width:100%;max-height:260px;border:1px solid var(--line);border-radius:4px;display:block;margin:8px 0}
+
+/* ---------- Thanh trạng thái dưới đáy ---------- */
+#statusbar{display:flex;gap:12px;align-items:center;justify-content:space-between;background:#f2f2f2;border-top:1px solid var(--line);padding:4px 16px;min-height:48px;font-size:14px;position:sticky;bottom:0;z-index:40}
+#statusRight{display:flex;gap:8px;align-items:center}
+#zoomSlider{width:170px;min-height:48px}
+#zoomLabel{min-width:52px;text-align:right}
+
+/* ---------- Backstage (tab Tệp) ---------- */
+#backstage{position:fixed;inset:0;z-index:200;background:#fff;display:flex;flex-direction:column}
+#backstageHead{display:flex;gap:12px;align-items:center;background:var(--app);color:#fff;padding:8px 16px}
+#backstageHead button{background:transparent;border:1px solid rgba(255,255,255,.6);color:#fff}
+#backstageHead h2{margin:0}
+#backstageBody{display:flex;flex:1;min-height:0}
+#backstageNav{flex:0 0 200px;background:#f2f2f2;border-right:1px solid var(--line);padding:12px 0;display:flex;flex-direction:column;gap:4px}
+#backstageNav button{border:none;border-radius:0;text-align:left;background:transparent;padding:12px 16px;font-size:17px}
+#backstageNav button.active{background:#fff;font-weight:700;border-left:4px solid var(--app)}
+#backstageContent{flex:1;padding:24px 20px;overflow:auto}
+.bs-file{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px;border:1px solid var(--line);border-radius:4px;background:#fff;margin:8px 0}
+
+/* ---------- Trình chiếu ---------- */
+#presentOverlay{position:fixed;inset:0;z-index:100;background:#111;color:#fff;display:flex;flex-direction:column}
 #presentSlide{flex:1;overflow:auto;padding:24px 20px 12px;text-align:left}
 #presentSlide h2{font-size:36px;line-height:1.25;margin:0 0 18px}
 #presentSlide ul{font-size:24px;line-height:1.6;margin:0;padding-left:28px}
@@ -74,7 +154,34 @@ table.sheet input.formula{color:#0b6fa4}
 #presentControls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center;padding:12px 12px 24px;background:#111}
 #presentControls button{min-height:56px;padding:12px 20px;font-size:19px;background:#fff;color:#111}
 #presentCounter{font-size:18px;min-width:120px;text-align:center}
-@media(max-width:600px){#presentSlide h2{font-size:30px}#presentSlide ul{font-size:21px}}
-.small{font-size:13px;color:var(--muted)}
-footer{padding:16px;text-align:center;color:var(--muted);font-size:13px}
-@media(max-width:600px){header h1{font-size:19px}#editor{min-height:260px}}
+#presentSlide.trans-fade{animation:fadein .35s ease}
+#presentSlide.trans-slide{animation:slidein .35s ease}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+@keyframes slidein{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+
+/* ---------- Bottom sheet, PDF, file list ---------- */
+.sheet-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;display:none}
+.sheet-backdrop.open{display:block}
+.bsheet{position:fixed;left:0;right:0;bottom:0;z-index:51;background:#fff;border-radius:20px 20px 0 0;padding:16px 16px 28px;max-height:75vh;overflow:auto;box-shadow:0 -4px 24px rgba(0,0,0,.25);display:none}
+.bsheet.open{display:block}
+.bsheet h3{margin:0 0 12px}
+.bsheet button{display:block;width:100%;min-height:56px;text-align:left;margin:6px 0;font-size:17px}
+.bsheet .swatch{display:inline-block;width:28px;height:28px;border-radius:50%;vertical-align:middle;margin-right:10px;border:1px solid #ccc}
+#pdfWrap{touch-action:none;position:relative;display:inline-block;max-width:100%;border:1px solid var(--line);background:#fff}
+#pdfCanvas,#pdfOverlay{display:block;max-width:100%;height:auto}
+#pdfOverlay{position:absolute;left:0;top:0;touch-action:none}
+.fileitem{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px;border:1px solid var(--line);border-radius:4px;background:#fff;margin:8px 0}
+.badge{padding:3px 9px;border-radius:20px;font-size:13px;background:#eee}
+.badge.drive{background:#dbeafe}.badge.onedrive{background:#e0e7ff}.badge.pending{background:#fff4d6}.badge.local{background:#eee}
+#fontTest{padding:14px;border:1px solid var(--line);border-radius:4px;background:#fff;font-size:20px}
+@media(max-width:700px){
+  #wordPage{min-height:640px}
+  #editor{padding:32px;min-height:560px}
+  #rulerNums span{flex-basis:28px}
+  #slideLayout{flex-direction:column}
+  #slideThumbs{flex:none;flex-direction:row;overflow-x:auto;max-height:none;padding-right:0;padding-bottom:10px}
+  .thumb{min-width:170px}
+  #backstageNav{flex-basis:150px}
+  #apptitle{font-size:15px}
+  #presentSlide h2{font-size:30px}#presentSlide ul{font-size:21px}
+}
