@@ -1,3 +1,9 @@
+/* Bản 1.4: font Carlito nhúng nội bộ (giấy phép mở OFL, file trong fonts/) —
+   không tải font từ mạng, web hiện đúng font cả khi ngoại tuyến. */
+@font-face{font-family:"Carlito";src:url("fonts/Carlito-Regular.ttf") format("truetype");font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:"Carlito";src:url("fonts/Carlito-Bold.ttf") format("truetype");font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:"Carlito";src:url("fonts/Carlito-Italic.ttf") format("truetype");font-weight:400;font-style:italic;font-display:swap}
+@font-face{font-family:"Carlito";src:url("fonts/Carlito-BoldItalic.ttf") format("truetype");font-weight:700;font-style:italic;font-display:swap}
 /* Văn phòng của Bùi — bản web 1.3. Khung hình theo Office bản desktop Windows:
    thanh tiêu đề màu theo app + Quick Access Toolbar, dải tab ribbon, ribbon lệnh theo nhóm,
    vùng làm việc nền xám + trang trắng có bóng đổ, thanh trạng thái dưới đáy.
@@ -39,10 +45,13 @@ textarea{min-height:110px}
 #apptitle #saveState{font-size:13px;opacity:.85;flex-shrink:0}
 
 /* ---------- Dải tab ribbon ---------- */
-/* Bản 1.3: cuộn ngang ẨN thanh cuộn + dừng đúng tab (snap), không lưng chừng. */
-#ribbonTabs{display:flex;gap:0;overflow-x:auto;background:#fff;border-bottom:1px solid var(--line);padding:0 8px;flex-wrap:nowrap;scrollbar-width:none;-ms-overflow-style:none;scroll-snap-type:x proximity}
+/* Bản 1.3: cuộn ngang ẨN thanh cuộn + dừng đúng tab (snap), không lưng chừng.
+   Bản 1.4: viền mờ (fade) ở mép phải báo còn tab nữa; tab không cắt giữa chữ
+   nhờ snap + chữ/padding co lại ở khổ hẹp; tab đang chọn luôn được JS cuộn
+   vào tầm nhìn (renderRibbonTabs). */
+#ribbonTabs{display:flex;gap:0;overflow-x:auto;background:#fff;border-bottom:1px solid var(--line);padding:0 8px;flex-wrap:nowrap;scrollbar-width:none;-ms-overflow-style:none;scroll-snap-type:x proximity;-webkit-mask-image:linear-gradient(to right,#000 88%,transparent 100%);mask-image:linear-gradient(to right,#000 88%,transparent 100%)}
 #ribbonTabs::-webkit-scrollbar{display:none}
-#ribbonTabs button{min-height:48px;border:none;border-bottom:3px solid transparent;background:#fff;border-radius:0;white-space:nowrap;font-size:16px;padding:10px 14px;color:#333;scroll-snap-align:start;flex-shrink:0}
+#ribbonTabs button{min-height:48px;border:none;border-bottom:3px solid transparent;background:#fff;border-radius:0;white-space:nowrap;overflow-wrap:normal;word-break:keep-all;font-size:16px;padding:10px 14px;color:#333;scroll-snap-align:start;flex-shrink:0}
 #ribbonTabs button.active{border-bottom-color:var(--app);color:var(--app);font-weight:700}
 #ribbonTabs button.filetab{background:var(--app);color:#fff;font-weight:700}
 
@@ -133,6 +142,40 @@ table.sheet input.formula{color:var(--app)}
 .slidecard{padding:14px;border:1px solid var(--line);border-radius:4px;background:#fff;margin:12px 0}
 .slidecard img.slideimg{max-width:100%;max-height:260px;border:1px solid var(--line);border-radius:4px;display:block;margin:8px 0}
 
+/* ---------- Bản 1.4: tìm/thay, theo dõi thay đổi, đầu/chân trang, đọc, chia cửa sổ ---------- */
+mark.findmark{background:#ffeb3b;color:#1a1a1a;padding:0 1px}
+ins.track-ins{color:#1a7a2e;text-decoration:underline}
+del.track-del{color:#c00000}
+.doc-header{border-bottom:1px solid #999;padding-bottom:6px;margin-bottom:12px;color:#555}
+.doc-footer{border-top:1px solid #999;padding-top:6px;margin-top:12px;color:#555}
+/* !important vì switchApp() đặt display nội tuyến cho 2 khối này, CSS
+   thường không thắng được style nội tuyến. */
+body.reading #ribbonTabs,body.reading #ribbon{display:none !important}
+#exitReadingBtn{position:fixed;top:64px;right:12px;z-index:90;background:var(--app);color:#fff;border-color:var(--app);font-weight:700;box-shadow:0 2px 10px rgba(0,0,0,.3)}
+body.split-on #wordWork{display:flex;gap:16px;align-items:flex-start}
+body.split-on #wordPage{flex:1;min-width:0}
+#splitPane{flex:1;min-width:0;background:#fff;box-shadow:0 2px 14px rgba(0,0,0,.35);padding:96px;min-height:1000px;overflow:auto;pointer-events:none;opacity:.92}
+/* ---------- Bản 1.4: Excel — đóng băng hàng đầu, biểu đồ cột ---------- */
+#sheetWrap.freeze-first tr:nth-child(2) td,#sheetWrap.freeze-first tr:nth-child(2) th{position:sticky;top:34px;z-index:1;background:#fff}
+#sheetChart{background:#fff;border:1px solid var(--line);box-shadow:0 2px 14px rgba(0,0,0,.25);padding:16px;margin-top:12px}
+.chartbars,.slide-chart{display:flex;gap:12px;align-items:flex-end;min-height:160px;padding:12px 4px;overflow-x:auto}
+.chartbar-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:52px;font-size:13px}
+.chartbar{width:44px;background:var(--app);border-radius:4px 4px 0 0}
+/* ---------- Bản 1.4: PowerPoint — hình dạng, biểu đồ trên slide ---------- */
+.slide-shapes{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:12px 0}
+.shape-rect{width:120px;height:70px;border:3px solid var(--app);background:#eaf3fb}
+.shape-circle{width:80px;height:80px;border-radius:50%;border:3px solid var(--app);background:#eaf3fb}
+.shape-arrow{font-size:64px;color:var(--app);line-height:1}
+.slide-chart .chartbar{background:var(--app)}
+#presentSlide .slide-shapes .shape-rect{border-color:#fff;background:rgba(255,255,255,.25)}
+#presentSlide .slide-shapes .shape-circle{border-color:#fff;background:rgba(255,255,255,.25)}
+#presentSlide .slide-shapes .shape-arrow{color:#fff}
+#presentSlide .slide-chart .chartbar{background:#fff}
+#presentSlide.trans-up{animation:slideup .35s ease}
+#presentSlide.trans-zoom{animation:zoomin .35s ease}
+@keyframes slideup{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+@keyframes zoomin{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+
 /* ---------- Thanh trạng thái dưới đáy ---------- */
 /* Bản 1.3: CHỈ 1 dòng ở mọi khổ — trái co lại kèm dấu …, phải không bị ép nhỏ. */
 #statusbar{display:flex;flex-wrap:nowrap;gap:12px;align-items:center;justify-content:space-between;background:#f2f2f2;border-top:1px solid var(--line);padding:4px 16px;min-height:48px;font-size:14px;position:sticky;bottom:0;z-index:40}
@@ -185,6 +228,11 @@ table.sheet input.formula{color:var(--app)}
 .badge.drive{background:#dbeafe}.badge.onedrive{background:#e0e7ff}.badge.pending{background:#fff4d6}.badge.local{background:#eee}
 #fontTest{padding:14px;border:1px solid var(--line);border-radius:4px;background:#fff;font-size:20px}
 @media(max-width:700px){
+  /* Bản 1.4: dải tab co chữ/padding vừa đủ để không cắt giữa chữ ở 390px
+     (8 tab vẫn cuộn ngang được, có viền mờ báo còn tab ở phía phải). */
+  #ribbonTabs button{font-size:13px;padding:10px 8px}
+  #splitPane{padding:20px;min-height:560px}
+  body.split-on #wordWork{flex-direction:column}
   /* Bản 1.3: trang giấy gần full chiều rộng 390px, lề nhỏ, chữ vẫn đủ lớn để đọc. */
   .workarea{padding:8px}
   #wordPage{min-height:640px}

@@ -1,4 +1,4 @@
-# Văn phòng của Bùi — Bản web (PWA) 1.3
+# Văn phòng của Bùi — Bản web (PWA) 1.4
 
 ## Vì sao là bản web, không phải app App Store thật
 
@@ -6,7 +6,7 @@
 Apple Developer trả phí + máy Mac để ký và đóng gói**, mà môi trường làm bản này không có
 cả hai. Vì vậy đầu ra cho iPhone/iPad là **bản web (PWA)**: mở `index.html` bằng Safari,
 và khi được phục vụ qua https thì cài được như app qua **Chia sẻ → Thêm vào Màn hình chính**
-(kèm `manifest.json` + service worker `sw.js`, cache `van-phong-bui-v4`).
+(kèm `manifest.json` + service worker `sw.js`, cache `van-phong-bui-v5`).
 
 ## Chạy như thế nào
 
@@ -18,6 +18,114 @@ và khi được phục vụ qua https thì cài được như app qua **Chia s�
 - **HTML/JS thuần, không framework build**, không cần cài đặt, không thu thập dữ liệu,
   không nhúng key/secret, không ghi sẵn nội dung mẫu (nội dung demo trong ảnh chụp màn hình
   chỉ seed trong phiên chụp để kiểm chứng, không có trong app).
+
+## Mới trong bản 1.4 — làm đầy ruột ribbon, font nội bộ, dọn vùng làm việc
+
+Bản 1.4 **chỉ sửa nhánh web** (`web/`), không đụng tới `android/` hay file APK, và
+**không tự publish web**. Mọi nút cũ giữ nguyên, chỉ thêm nút mới — nút nào thêm
+vào đều chạy thật:
+
+- **Bỏ nhóm “Tệp” khỏi ribbon Trang đầu cả 3 món:** Mở/Lưu/Xuất chỉ còn trong
+  khung Tệp (Backstage) và nút Lưu trên thanh QAT, như Office thật. Nút “Trình chiếu”
+  của PowerPoint (không phải thao tác tệp) chuyển sang nhóm Slide.
+- **Word Trang đầu (19 → 34 nút):** thêm Bảng tạm (Cắt, Sao chép, Dán, Sao chép
+  định dạng — bấm lần 1 lấy định dạng đoạn đang chọn, bôi đen đoạn khác bấm lần 2
+  để dán); Phông chữ thêm Chỉ số dưới/trên, Xóa định dạng, Tăng/Giảm cỡ chữ;
+  Đoạn thêm Tăng/Giảm thụt lề, Tô nền đoạn, Viền đoạn; nhóm Kiểu (Thường, Tiêu đề
+  1/2/3) áp thật vào đoạn đang chọn; nhóm Soạn thảo (Tìm tô sáng vàng toàn tài liệu,
+  Thay thế từng cái một).
+- **Word Chèn (5 → 10):** thêm Số trang, Đầu trang, Chân trang, Liên kết, Ký tự đặc
+  biệt (bảng ký tự bấm là chèn). **Word Thiết kế (4 → 11):** 4 chủ đề màu phối sẵn
+  áp cho toàn tài liệu (nền + màu chữ + font: Giấy trắng, Kem cổ điển, Xanh dịu,
+  Xanh lá nhẹ) + Cỡ chữ chủ đề Nhỏ/Vừa/Lớn, giữ 3 nút nền đơn lẻ cũ.
+  **Word Bố trí (7 → 10):** thêm Cột văn bản 1/2 cột + Ngắt cột.
+  **Word Tham chiếu (2 → 5):** Mục lục tự động (quét mọi tiêu đề trong tài liệu,
+  không chỉ nút con trực tiếp), Danh mục hình, Chú thích, Đánh dấu trang, Trích dẫn.
+  **Word Xem lại (3 → 6):** thêm Theo dõi thay đổi (chặn ở `beforeinput` nên chữ
+  gõ mới bọc `<ins>`, chữ xóa giữ dạng `<del>`; gõ tiếng Việt bằng IME cho qua mặc
+  định để không vỡ dấu), Chấp nhận/Từ chối thay đổi. **Word Xem (2 → 4):** thêm
+  Chế độ đọc (ẩn ribbon + dải tab, nút “Thoát chế độ đọc” hiện cố định) và Chia cửa
+  sổ (khung xem thứ hai chỉ đọc, đồng bộ theo nội dung đang soạn).
+- **Excel Trang đầu (13 → 29):** thêm Bảng tạm (Cắt/Sao chép/Dán ô), Phông chữ
+  (Đậm/Nghiêng/Gạch chân/Màu chữ/Tô nền ô), Căn lề (Trái/Giữa/Phải, dọc trên/giữa/
+  dưới, Xuống dòng tự động), Số (Định dạng tiền `₫`, %, tăng/giảm thập phân);
+  định dạng ô lưu kèm file và hoàn tác được. **Excel Chèn (3 → 8):** thêm Hàng dưới,
+  Cột phải, Liên kết, Ghi chú ô (dấu ◐ + tooltip), Biểu đồ cột từ cột đang chọn.
+  **Excel Công thức (6 → 7):** thêm Tổng cột này. **Excel Dữ liệu (3 → 7):** thêm
+  Lọc/Bỏ lọc theo cột đang chọn, Xóa trùng (hàng trùng hoàn toàn), Tách cột.
+  **Excel Xem lại (2 → 6):** thêm Nhận xét ô, Xóa nhận xét, Đánh dấu trùng,
+  Xóa định dạng ô. **Excel Xem (2 → 6):** thêm Thu phóng 50%/150%, Đóng băng hàng
+  đầu, Hiện công thức (hiện dạng thô thay cho giá trị tính). **Excel Bố trí Trang
+  (2 → 4):** thêm Thu phóng 50%/150%.
+- **PowerPoint Trang đầu (7 → 14):** thêm Phông chữ (chọn font, Đậm/Nghiêng/Gạch
+  chân/Màu chữ tiêu đề) và Đoạn (căn Trái/Giữa/Phải, bật/tắt gạch đầu dòng).
+  **Chèn (2 → 6):** thêm Hình chữ nhật, Hình tròn, Mũi tên, Biểu đồ (nhập số cách
+  nhau bằng dấu phẩy). **Thiết kế (6 → 10):** thêm 4 chủ đề slide phối sẵn (Sáng
+  xanh, Kem ấm, Xanh lá, Nền tối). **Chuyển đổi (3 → 5):** thêm Trượt dọc, Phóng to.
+  **Trình chiếu (3 → 5):** thêm Ẩn slide này (trình chiếu bỏ qua, vẫn giữ trong bài)
+  và Tự chuyển 5s. **Xem lại (1 → 4):** thêm Chính tả, Nhận xét, Dịch.
+  **Xem (2 → 4):** thêm Thu phóng 50%/150%.
+- **Dải tab trên điện thoại:** chữ/padding co lại ở khổ ≤700px, viền mờ (fade) ở
+  mép phải báo còn tab, tab đang chọn luôn được cuộn vào tầm nhìn (JS
+  `scrollIntoView` trong `renderRibbonTabs`). Lưu ý khi soi ảnh 390px: tab không
+  được chọn ở mép phải vẫn mờ dần ở rìa (đó chính là tín hiệu fade), nhưng tab
+  đang chọn không bao giờ bị cắt.
+- **Font thật, không phụ thuộc mạng:** font Carlito (giấy phép mở OFL) tải về
+  `web/fonts/Carlito-{Regular,Bold,Italic,BoldItalic}.ttf` và dùng `@font-face`
+  nội bộ trong `style.css`; đã gỡ link Google Fonts khỏi `index.html`, service
+  worker cache v5 gồm cả 4 file font. Kiểm chứng bằng CDP: trình duyệt thật sự
+  request 3 file font nội bộ (Regular/Bold/Italic, theo kiểu chữ trang dùng) từ
+  máy chủ local và **không có request nào tới Google Fonts**.
+- **Dọn vùng làm việc:** khối “Tài liệu/Bảng tính/Bài trình bày đã lưu trên máy”
+  dưới trang/lưới/slide đã xóa khỏi cả 3 tab; danh sách file đã lưu xem trong
+  khung Tệp → Mở (đã có sẵn từ trước). Vùng làm việc chỉ còn trang/lưới/slide +
+  thanh trạng thái. Hàng nút Xuất/Dịch lặp lại dưới trang Word cũng đã bỏ (chức
+  năng còn trong ribbon/khung Tệp).
+- **Nút vẫn tối thiểu 48px** (luật CSS chung không đổi), toàn tiếng Việt, không
+  tên/logo Microsoft, không nhúng key/secret. Cache service worker bump
+  `van-phong-bui-v4` → `van-phong-bui-v5`; ảnh kiểm chứng bản 1.4 trong
+  `screenshots/` với tiền tố `v14-` (21 tab × 2 khổ = 42 ảnh).
+- **Giới hạn còn tồn tại (ghi rõ, không giấu):** (1) “Số trang” là nhãn tĩnh
+  “Trang 1” vì trình soạn chỉ có một trang giấy duy nhất, không phải trường số
+  trang tự nhảy khi in nhiều trang; (2) “Dán” của Word dùng `execCommand('paste')`
+  mà nhiều trình duyệt chặn vì bảo mật — khi bị chặn trang báo rõ dùng Ctrl+V;
+  (3) định dạng ô Excel và hình dạng/biểu đồ PowerPoint hiện trong app và lưu
+  kèm file, nhưng **chưa xuất sang .xlsx/.pptx** (bộ xuất cũ chỉ ghi giá trị/
+  tiêu đề/nội dung/ảnh); (4) “Đóng băng hàng đầu” dùng vị trí sticky ước lượng
+  dưới hàng tiêu đề cột, chưa đo pixel chính xác trên mọi cỡ chữ; (5) Theo dõi
+  thay đổi chỉ đánh dấu thao tác gõ/xóa qua bàn phím (dán bằng menu trình duyệt
+  vẫn chèn dạng `<ins>` qua `insertFromPaste` khi lấy được dữ liệu, xóa bằng lệnh
+  phức tạp ngoài 1 ký tự/bôi đen có thể lọt); (6) kiểm chứng font bằng
+  `document.fonts.check()` trong headless cho kết quả không ổn định (do fontconfig
+  của máy chụp), nên bằng chứng font lấy từ log request CDP + ảnh chụp chứ không
+  dựa vào `fonts.check()`.
+
+## Kiểm chứng bản 1.4 (bằng mắt + chức năng)
+
+- `node --check app.js` đạt; mọi hàm trong `onclick` của `index.html` đều có định
+  nghĩa trong `app.js` (kiểm bằng script quét, 0 hàm thiếu).
+- **Đếm nút trước/sau (đếm nút `.rbtn` trong từng panel):** Word Trang đầu 19→34,
+  Chèn 5→10, Thiết kế 4→11, Bố trí 7→10, Tham chiếu 2→5, Xem lại 3→6, Xem 2→4;
+  Excel Trang đầu 13→29, Chèn 3→8, Bố trí Trang 2→4, Công thức 6→7, Dữ liệu 3→7,
+  Xem lại 2→6, Xem 2→6; PowerPoint Trang đầu 7→14, Chèn 2→6, Thiết kế 6→10,
+  Chuyển đổi 3→5, Trình chiếu 3→5, Xem lại 1→4, Xem 2→4. Tổng 97→195 nút.
+  Không tab nào còn 1–3 nút.
+- **Chụp thật bằng chrome-headless-shell local** (máy chủ local, hook tạm
+  `?shot=<app>-<tab>` chỉ dùng trong phiên chụp, đã xóa khỏi `app.js` trước khi
+  bàn giao): đủ 42 ảnh `screenshots/v14-*-390.png` và `v14-*-1280.png`, đã mở
+  từng ảnh nhìn bằng mắt — tab đang chọn luôn hiện đầy đủ ở cả 2 khổ, không còn
+  nhóm Tệp trong ribbon Trang đầu, vùng làm việc chỉ còn trang/lưới/slide +
+  thanh trạng thái.
+- **Kiểm khói chức năng qua CDP** (đã chặn alert trong phiên kiểm): định dạng tiền
+  `1.000.000 ₫`, phần trăm `50%`, tách cột `a|b|c`, biểu đồ cột Excel hiện cột,
+  đánh dấu trùng, hình dạng slide, chủ đề tối, ẩn slide, chủ đề tài liệu kem,
+  cột văn bản 2 cột, mục lục tự động đủ tiêu đề, chế độ đọc ẩn ribbon (phát hiện
+  và sửa 1 lỗi: `switchApp()` ghi đè class + style nội tuyến thắng CSS — đã sửa
+  bằng cách bỏ gọi `switchApp()` trong `toggleReadingMode()` và thêm `!important`
+  cho luật ẩn ribbon), chia cửa sổ, theo dõi thay đổi.
+- **Không tự publish web.** Chưa kiểm chứng trên điện thoại thật và chưa kiểm
+  chứng từng nút bấm tay trên máy thật — cần Bùi bấm thử các nút mới trên máy thật
+  trước khi coi là chốt.
 
 ## Mới trong bản 1.3 — sửa 9 lỗi giao diện Bùi chê ở bản 1.2 (đặc biệt vỡ nát ở 390px)
 

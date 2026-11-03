@@ -1,8 +1,10 @@
 /* Service worker cho bản web Văn phòng của Bùi.
    CHỈ chạy khi trang được phục vụ qua https (hoặc localhost).
    Ở chế độ file://, trình duyệt không đăng ký được service worker — app vẫn chạy bình thường, chỉ không cài như PWA và không có bộ nhớ đệm ngoại tuyến. */
-var CACHE = 'van-phong-bui-v4';
-var CORE = ['./index.html', './style.css', './app.js', './manifest.json', './icon.svg'];
+var CACHE = 'van-phong-bui-v5';
+var CORE = ['./index.html', './style.css', './app.js', './manifest.json', './icon.svg',
+  './fonts/Carlito-Regular.ttf', './fonts/Carlito-Bold.ttf',
+  './fonts/Carlito-Italic.ttf', './fonts/Carlito-BoldItalic.ttf'];
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(CORE); }).catch(function () {}));
 });

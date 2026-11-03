@@ -11,11 +11,11 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="apple-touch-icon" href="icon.svg">
 <link rel="stylesheet" href="style.css">
-<!-- Font mặc định: Carlito qua Google Fonts (font mở, metric tương đương Calibri, có subset vietnamese).
-     Các font đã kiểm chứng khác: Be Vietnam Pro, Inter, Roboto, Noto Sans, Noto Serif. -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Carlito:ital,wght@0,400;0,700;1,400;1,700&family=Be+Vietnam+Pro:wght@400;700&family=Inter:wght@400;700&family=Roboto:wght@400;700&family=Noto+Sans:wght@400;700&family=Noto+Serif:wght@400;700&display=swap" rel="stylesheet">
+<!-- Bản 1.4: font Carlito nhúng nội bộ qua @font-face trong style.css (file fonts/
+     Carlito-*.ttf, giấy phép mở OFL) — web hiện đúng font cả khi không có mạng,
+     không còn tải font từ Google Fonts. Các font khác trong ô kiểm chứng font
+     (Be Vietnam Pro, Inter, Roboto, Noto Sans, Noto Serif) chỉ là tên font dự
+     phòng, không tải từ mạng. -->
 </head>
 <body class="app-word">
 <!-- ============ THANH TIÊU ĐỀ KIỂU OFFICE WINDOWS ============
@@ -40,12 +40,23 @@
   <!-- ===== WORD ===== -->
   <div class="rpanel" id="rp-word-home" data-app="word" data-tab="home">
     <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="docCut()"><span class="ricon">✂</span><span class="rlabel">Cắt</span></button>
+      <button class="rbtn" onclick="docCopy()"><span class="ricon">⧉</span><span class="rlabel">Sao chép</span></button>
+      <button class="rbtn" onclick="docPaste()"><span class="ricon">▤</span><span class="rlabel">Dán</span></button>
+      <button class="rbtn" onclick="copyDocFormat()"><span class="ricon">🖌</span><span class="rlabel">Sao chép định dạng</span></button>
+    </div><div class="glabel">Bảng tạm</div></div>
+    <div class="rgroup"><div class="rbtns">
       <button class="rbtn wide" onclick="openFontSheet()"><span class="ricon" id="fontLabel">Carlito</span></button>
       <button class="rbtn" onclick="openSizeSheet()"><span class="ricon">11</span><span class="rlabel">Cỡ chữ</span></button>
       <button class="rbtn" onclick="cmd('bold')" title="Đậm (Ctrl+B)"><span class="ricon"><b>B</b></span><span class="rlabel">Đậm</span></button>
       <button class="rbtn" onclick="cmd('italic')" title="Nghiêng (Ctrl+I)"><span class="ricon"><i>I</i></span><span class="rlabel">Nghiêng</span></button>
       <button class="rbtn" onclick="cmd('underline')" title="Gạch chân (Ctrl+U)"><span class="ricon"><u>U</u></span><span class="rlabel">Gạch chân</span></button>
       <button class="rbtn" onclick="cmd('strikeThrough')" title="Gạch ngang"><span class="ricon"><s>S</s></span><span class="rlabel">Gạch ngang</span></button>
+      <button class="rbtn" onclick="cmd('subscript')"><span class="ricon">X<sub>2</sub></span><span class="rlabel">Chỉ số dưới</span></button>
+      <button class="rbtn" onclick="cmd('superscript')"><span class="ricon">X<sup>2</sup></span><span class="rlabel">Chỉ số trên</span></button>
+      <button class="rbtn" onclick="cmd('removeFormat')"><span class="ricon">A✕</span><span class="rlabel">Xóa định dạng</span></button>
+      <button class="rbtn" onclick="changeFontSize(2)"><span class="ricon">A▲</span><span class="rlabel">Tăng cỡ chữ</span></button>
+      <button class="rbtn" onclick="changeFontSize(-2)"><span class="ricon">A▼</span><span class="rlabel">Giảm cỡ chữ</span></button>
       <button class="rbtn" onclick="openColorSheet('fore')"><span class="ricon" style="color:#c00000">A</span><span class="rlabel">Màu chữ</span></button>
       <button class="rbtn" onclick="openColorSheet('hilite')"><span class="ricon" style="background:#ffeb3b">A</span><span class="rlabel">Tô sáng</span></button>
     </div><div class="glabel">Phông chữ</div></div>
@@ -57,13 +68,21 @@
       <button class="rbtn" onclick="cmd('justifyRight')"><span class="ricon">≡</span><span class="rlabel">Phải</span></button>
       <button class="rbtn" onclick="cmd('justifyFull')"><span class="ricon">≡</span><span class="rlabel">Đều</span></button>
       <button class="rbtn" onclick="openLineSheet()"><span class="ricon">↕</span><span class="rlabel">Cách dòng</span></button>
+      <button class="rbtn" onclick="cmd('indent')"><span class="ricon">→≡</span><span class="rlabel">Tăng thụt lề</span></button>
+      <button class="rbtn" onclick="cmd('outdent')"><span class="ricon">≡←</span><span class="rlabel">Giảm thụt lề</span></button>
+      <button class="rbtn" onclick="openParaBgSheet()"><span class="ricon" style="background:#ffeb3b">&nbsp;</span><span class="rlabel">Tô nền đoạn</span></button>
+      <button class="rbtn" onclick="toggleParaBorder()"><span class="ricon">▭</span><span class="rlabel">Viền đoạn</span></button>
     </div><div class="glabel">Đoạn</div></div>
     <div class="rgroup"><div class="rbtns">
-      <button class="rbtn" onclick="openDocSheet()"><span class="ricon">▤</span><span class="rlabel">Mở tài liệu</span></button>
-      <button class="rbtn" onclick="saveDoc()"><span class="ricon">Lưu</span><span class="rlabel">Lưu vào máy</span></button>
-      <button class="rbtn" onclick="exportDocx()"><span class="ricon">.docx</span><span class="rlabel">Xuất .docx</span></button>
-      <button class="rbtn" onclick="exportTxt()"><span class="ricon">.txt</span><span class="rlabel">Xuất .txt</span></button>
-    </div><div class="glabel">Tệp</div></div>
+      <button class="rbtn" onclick="cmd('formatBlock','p')"><span class="ricon">¶</span><span class="rlabel">Thường</span></button>
+      <button class="rbtn" onclick="cmd('formatBlock','h1')"><span class="ricon">H1</span><span class="rlabel">Tiêu đề 1</span></button>
+      <button class="rbtn" onclick="cmd('formatBlock','h2')"><span class="ricon">H2</span><span class="rlabel">Tiêu đề 2</span></button>
+      <button class="rbtn" onclick="cmd('formatBlock','h3')"><span class="ricon">H3</span><span class="rlabel">Tiêu đề 3</span></button>
+    </div><div class="glabel">Kiểu</div></div>
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="findInDoc()"><span class="ricon">🔍</span><span class="rlabel">Tìm</span></button>
+      <button class="rbtn" onclick="replaceInDoc()"><span class="ricon">⇄</span><span class="rlabel">Thay thế</span></button>
+    </div><div class="glabel">Soạn thảo</div></div>
   </div>
   <div class="rpanel" id="rp-word-insert" data-app="word" data-tab="insert">
     <div class="rgroup"><div class="rbtns">
@@ -74,9 +93,20 @@
       <button class="rbtn" onclick="insertDateIntoDoc()"><span class="ricon">31/12</span><span class="rlabel">Ngày hôm nay</span></button>
       <button class="rbtn" onclick="insertHRuleIntoDoc()"><span class="ricon">――</span><span class="rlabel">Đường kẻ</span></button>
       <button class="rbtn" onclick="insertPageBreakIntoDoc()"><span class="ricon">↲</span><span class="rlabel">Ngắt trang</span></button>
+      <button class="rbtn" onclick="insertPageNumber()"><span class="ricon">#</span><span class="rlabel">Số trang</span></button>
+      <button class="rbtn" onclick="insertDocHeader()"><span class="ricon">▲▤</span><span class="rlabel">Đầu trang</span></button>
+      <button class="rbtn" onclick="insertDocFooter()"><span class="ricon">▤▼</span><span class="rlabel">Chân trang</span></button>
+      <button class="rbtn" onclick="insertDocLink()"><span class="ricon">🔗</span><span class="rlabel">Liên kết</span></button>
+      <button class="rbtn" onclick="openSymbolSheet()"><span class="ricon">Ω</span><span class="rlabel">Ký tự đặc biệt</span></button>
     </div><div class="glabel">Nội dung</div></div>
   </div>
   <div class="rpanel" id="rp-word-design" data-app="word" data-tab="design">
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="applyDocTheme('giay')"><span class="ricon" style="background:#fff;border:1px solid #999;color:#1a1a1a">Aa</span><span class="rlabel">Giấy trắng</span></button>
+      <button class="rbtn" onclick="applyDocTheme('kem')"><span class="ricon" style="background:#fdf6e3;border:1px solid #999;color:#5b4636">Aa</span><span class="rlabel">Kem cổ điển</span></button>
+      <button class="rbtn" onclick="applyDocTheme('xanh')"><span class="ricon" style="background:#eaf3fb;border:1px solid #999;color:#0b3d66">Aa</span><span class="rlabel">Xanh dịu</span></button>
+      <button class="rbtn" onclick="applyDocTheme('xanhla')"><span class="ricon" style="background:#e6f4ea;border:1px solid #999;color:#14532d">Aa</span><span class="rlabel">Xanh lá nhẹ</span></button>
+    </div><div class="glabel">Chủ đề màu</div></div>
     <div class="rgroup"><div class="rbtns">
       <button class="rbtn" onclick="setPageBg('#ffffff')"><span class="ricon" style="background:#fff;border:1px solid #999">&nbsp;</span><span class="rlabel">Nền trắng</span></button>
       <button class="rbtn" onclick="setPageBg('#fdf6e3')"><span class="ricon" style="background:#fdf6e3;border:1px solid #999">&nbsp;</span><span class="rlabel">Nền kem</span></button>
@@ -84,6 +114,9 @@
     </div><div class="glabel">Màu nền trang</div></div>
     <div class="rgroup"><div class="rbtns">
       <button class="rbtn" onclick="applyFont('Carlito')"><span class="ricon">Aa</span><span class="rlabel">Carlito mặc định</span></button>
+      <button class="rbtn" onclick="setThemeFontSize('10pt')"><span class="ricon">A</span><span class="rlabel">Chữ chủ đề nhỏ</span></button>
+      <button class="rbtn" onclick="setThemeFontSize('11pt')"><span class="ricon">A</span><span class="rlabel">Chữ chủ đề vừa</span></button>
+      <button class="rbtn" onclick="setThemeFontSize('13pt')"><span class="ricon">A</span><span class="rlabel">Chữ chủ đề lớn</span></button>
     </div><div class="glabel">Phông chủ đề</div></div>
   </div>
   <div class="rpanel" id="rp-word-layout" data-app="word" data-tab="layout">
@@ -98,11 +131,19 @@
       <button class="rbtn" onclick="setPageOrientation('ngang')"><span class="ricon">▬</span><span class="rlabel">Trang ngang</span></button>
       <button class="rbtn" onclick="setPageOrientation('doc')"><span class="ricon">▮</span><span class="rlabel">Trang dọc</span></button>
     </div><div class="glabel">Khổ giấy</div></div>
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="setDocColumns(1)"><span class="ricon">▮</span><span class="rlabel">1 cột</span></button>
+      <button class="rbtn" onclick="setDocColumns(2)"><span class="ricon">▮▮</span><span class="rlabel">2 cột</span></button>
+      <button class="rbtn" onclick="insertColumnBreak()"><span class="ricon">↲▮</span><span class="rlabel">Ngắt cột</span></button>
+    </div><div class="glabel">Cột văn bản</div></div>
   </div>
   <div class="rpanel" id="rp-word-ref" data-app="word" data-tab="ref">
     <div class="rgroup"><div class="rbtns">
-      <button class="rbtn" onclick="insertTOC()"><span class="ricon">☰</span><span class="rlabel">Mục lục</span></button>
+      <button class="rbtn" onclick="insertTOC()"><span class="ricon">☰</span><span class="rlabel">Mục lục tự động</span></button>
+      <button class="rbtn" onclick="insertFigureList()"><span class="ricon">▦</span><span class="rlabel">Danh mục hình</span></button>
       <button class="rbtn" onclick="insertFootnoteNote()"><span class="ricon">1*</span><span class="rlabel">Chú thích</span></button>
+      <button class="rbtn" onclick="insertBookmark()"><span class="ricon">⚓</span><span class="rlabel">Đánh dấu trang</span></button>
+      <button class="rbtn" onclick="insertCitation()"><span class="ricon">❝</span><span class="rlabel">Trích dẫn</span></button>
     </div><div class="glabel">Tham chiếu</div></div>
   </div>
   <div class="rpanel" id="rp-word-review" data-app="word" data-tab="review">
@@ -111,16 +152,50 @@
       <button class="rbtn" onclick="insertCommentPara()"><span class="ricon">✎</span><span class="rlabel">Nhận xét</span></button>
       <button class="rbtn" onclick="translateSelection()"><span class="ricon">A→B</span><span class="rlabel">Dịch đoạn chọn</span></button>
     </div><div class="glabel">Xem lại</div></div>
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="toggleTrackChanges()"><span class="ricon">✎✓</span><span class="rlabel">Theo dõi thay đổi</span></button>
+      <button class="rbtn" onclick="acceptChanges()"><span class="ricon">✓</span><span class="rlabel">Chấp nhận thay đổi</span></button>
+      <button class="rbtn" onclick="rejectChanges()"><span class="ricon">✕</span><span class="rlabel">Từ chối thay đổi</span></button>
+    </div><div class="glabel">Theo dõi</div></div>
   </div>
   <div class="rpanel" id="rp-word-view" data-app="word" data-tab="view">
     <div class="rgroup"><div class="rbtns">
       <button class="rbtn" onclick="toggleRuler()"><span class="ricon">▤</span><span class="rlabel">Thước</span></button>
       <button class="rbtn" onclick="setZoom(100)"><span class="ricon">100%</span><span class="rlabel">Thu phóng 100%</span></button>
+      <button class="rbtn" onclick="toggleReadingMode()"><span class="ricon">📖</span><span class="rlabel">Chế độ đọc</span></button>
+      <button class="rbtn" onclick="toggleSplitView()"><span class="ricon">▮▮</span><span class="rlabel">Chia cửa sổ</span></button>
     </div><div class="glabel">Xem</div></div>
   </div>
 
   <!-- ===== EXCEL ===== -->
   <div class="rpanel" id="rp-excel-home" data-app="excel" data-tab="home">
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="cellCut()"><span class="ricon">✂</span><span class="rlabel">Cắt</span></button>
+      <button class="rbtn" onclick="cellCopy()"><span class="ricon">⧉</span><span class="rlabel">Sao chép</span></button>
+      <button class="rbtn" onclick="cellPaste()"><span class="ricon">▤</span><span class="rlabel">Dán</span></button>
+    </div><div class="glabel">Bảng tạm</div></div>
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="toggleCellFmt('b')"><span class="ricon"><b>B</b></span><span class="rlabel">Đậm</span></button>
+      <button class="rbtn" onclick="toggleCellFmt('i')"><span class="ricon"><i>I</i></span><span class="rlabel">Nghiêng</span></button>
+      <button class="rbtn" onclick="toggleCellFmt('u')"><span class="ricon"><u>U</u></span><span class="rlabel">Gạch chân</span></button>
+      <button class="rbtn" onclick="openCellColorSheet('fore')"><span class="ricon" style="color:#c00000">A</span><span class="rlabel">Màu chữ</span></button>
+      <button class="rbtn" onclick="openCellColorSheet('bg')"><span class="ricon" style="background:#ffeb3b">A</span><span class="rlabel">Tô nền ô</span></button>
+    </div><div class="glabel">Phông chữ</div></div>
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="setCellAlign('left')"><span class="ricon">≡</span><span class="rlabel">Trái</span></button>
+      <button class="rbtn" onclick="setCellAlign('center')"><span class="ricon">≡</span><span class="rlabel">Giữa</span></button>
+      <button class="rbtn" onclick="setCellAlign('right')"><span class="ricon">≡</span><span class="rlabel">Phải</span></button>
+      <button class="rbtn" onclick="setCellValign('top')"><span class="ricon">↑</span><span class="rlabel">Dọc trên</span></button>
+      <button class="rbtn" onclick="setCellValign('middle')"><span class="ricon">↕</span><span class="rlabel">Dọc giữa</span></button>
+      <button class="rbtn" onclick="setCellValign('bottom')"><span class="ricon">↓</span><span class="rlabel">Dọc dưới</span></button>
+      <button class="rbtn" onclick="toggleCellWrap()"><span class="ricon">↵</span><span class="rlabel">Xuống dòng tự động</span></button>
+    </div><div class="glabel">Căn lề</div></div>
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="setCellNumFmt('money')"><span class="ricon">₫</span><span class="rlabel">Định dạng tiền</span></button>
+      <button class="rbtn" onclick="setCellNumFmt('percent')"><span class="ricon">%</span><span class="rlabel">Phần trăm</span></button>
+      <button class="rbtn" onclick="changeCellDecimals(1)"><span class="ricon">0,0→</span><span class="rlabel">Tăng thập phân</span></button>
+      <button class="rbtn" onclick="changeCellDecimals(-1)"><span class="ricon">←0,0</span><span class="rlabel">Giảm thập phân</span></button>
+    </div><div class="glabel">Số</div></div>
     <div class="rgroup"><div class="rbtns">
       <button class="rbtn" onclick="insertRowAbove()"><span class="ricon">+ Hàng</span><span class="rlabel">Chèn hàng trên</span></button>
       <button class="rbtn" onclick="insertColLeft()"><span class="ricon">+ Cột</span><span class="rlabel">Chèn cột trái</span></button>
@@ -135,25 +210,27 @@
       <button class="rbtn" onclick="insertFormula('MAX')"><span class="ricon">▲</span><span class="rlabel">MAX</span></button>
       <button class="rbtn" onclick="insertFormula('MIN')"><span class="ricon">▼</span><span class="rlabel">MIN</span></button>
     </div><div class="glabel">Công thức</div></div>
-    <div class="rgroup"><div class="rbtns">
-      <button class="rbtn" onclick="saveSheet()"><span class="ricon">Lưu</span><span class="rlabel">Lưu vào máy</span></button>
-      <button class="rbtn" onclick="exportXlsx()"><span class="ricon">.xlsx</span><span class="rlabel">Xuất .xlsx</span></button>
-      <button class="rbtn" onclick="exportCsv()"><span class="ricon">.csv</span><span class="rlabel">Xuất .csv</span></button>
-    </div><div class="glabel">Tệp</div></div>
   </div>
   <div class="rpanel" id="rp-excel-insert" data-app="excel" data-tab="insert">
     <div class="rgroup"><div class="rbtns">
       <button class="rbtn" onclick="insertRowAbove()"><span class="ricon">+ Hàng</span><span class="rlabel">Chèn hàng</span></button>
       <button class="rbtn" onclick="insertColLeft()"><span class="ricon">+ Cột</span><span class="rlabel">Chèn cột</span></button>
+      <button class="rbtn" onclick="insertRowBelow()"><span class="ricon">+ Hàng</span><span class="rlabel">Chèn hàng dưới</span></button>
+      <button class="rbtn" onclick="insertColRight()"><span class="ricon">+ Cột</span><span class="rlabel">Chèn cột phải</span></button>
     </div><div class="glabel">Ô</div></div>
     <div class="rgroup"><div class="rbtns">
       <button class="rbtn" onclick="insertDateIntoCell()"><span class="ricon">31/12</span><span class="rlabel">Ngày hôm nay</span></button>
+      <button class="rbtn" onclick="insertCellLink()"><span class="ricon">🔗</span><span class="rlabel">Chèn liên kết</span></button>
+      <button class="rbtn" onclick="insertCellNote()"><span class="ricon">✎</span><span class="rlabel">Chèn ghi chú ô</span></button>
+      <button class="rbtn" onclick="insertColumnChart()"><span class="ricon">▂▃▅</span><span class="rlabel">Biểu đồ cột</span></button>
     </div><div class="glabel">Nội dung</div></div>
   </div>
   <div class="rpanel" id="rp-excel-layout" data-app="excel" data-tab="layout">
     <div class="rgroup"><div class="rbtns">
       <button class="rbtn" onclick="toggleGridlines()"><span class="ricon">▦</span><span class="rlabel">Đường lưới</span></button>
+      <button class="rbtn" onclick="setZoom(50)"><span class="ricon">50%</span><span class="rlabel">Thu phóng 50%</span></button>
       <button class="rbtn" onclick="setZoom(100)"><span class="ricon">100%</span><span class="rlabel">Thu phóng 100%</span></button>
+      <button class="rbtn" onclick="setZoom(150)"><span class="ricon">150%</span><span class="rlabel">Thu phóng 150%</span></button>
     </div><div class="glabel">Bố trí trang</div></div>
   </div>
   <div class="rpanel" id="rp-excel-formulas" data-app="excel" data-tab="formulas">
@@ -166,27 +243,40 @@
     </div><div class="glabel">Hàm</div></div>
     <div class="rgroup"><div class="rbtns">
       <button class="rbtn" onclick="showFormulaHelp()"><span class="ricon">fx ?</span><span class="rlabel">Cách viết công thức</span></button>
+      <button class="rbtn" onclick="insertColumnSum()"><span class="ricon">Σ↓</span><span class="rlabel">Tổng cột này</span></button>
     </div><div class="glabel">Trợ giúp</div></div>
   </div>
   <div class="rpanel" id="rp-excel-data" data-app="excel" data-tab="data">
     <div class="rgroup"><div class="rbtns">
       <button class="rbtn" onclick="sortSheet('asc')"><span class="ricon">A→Z</span><span class="rlabel">Sắp xếp tăng</span></button>
       <button class="rbtn" onclick="sortSheet('desc')"><span class="ricon">Z→A</span><span class="rlabel">Sắp xếp giảm</span></button>
-    </div><div class="glabel">Sắp xếp</div></div>
+      <button class="rbtn" onclick="filterSheet()"><span class="ricon">▼</span><span class="rlabel">Lọc</span></button>
+      <button class="rbtn" onclick="clearSheetFilter()"><span class="ricon">▼✕</span><span class="rlabel">Bỏ lọc</span></button>
+    </div><div class="glabel">Sắp xếp &amp; Lọc</div></div>
     <div class="rgroup"><div class="rbtns">
       <button class="rbtn" onclick="triggerImportCsv()"><span class="ricon">.csv</span><span class="rlabel">Nhập CSV</span></button>
+      <button class="rbtn" onclick="removeDuplicates()"><span class="ricon">⧉✕</span><span class="rlabel">Xóa trùng</span></button>
+      <button class="rbtn" onclick="splitCellColumn()"><span class="ricon">⇄</span><span class="rlabel">Tách cột</span></button>
     </div><div class="glabel">Lấy dữ liệu</div></div>
   </div>
   <div class="rpanel" id="rp-excel-review" data-app="excel" data-tab="review">
     <div class="rgroup"><div class="rbtns">
       <button class="rbtn" onclick="toggleSheetLock()"><span class="ricon">Khóa</span><span class="rlabel">Bảo vệ trang tính</span></button>
       <button class="rbtn" onclick="gotoTab('translate')"><span class="ricon">A→B</span><span class="rlabel">Dịch</span></button>
+      <button class="rbtn" onclick="insertCellNote()"><span class="ricon">✎</span><span class="rlabel">Nhận xét ô</span></button>
+      <button class="rbtn" onclick="deleteCellNote()"><span class="ricon">✎✕</span><span class="rlabel">Xóa nhận xét</span></button>
+      <button class="rbtn" onclick="highlightDuplicates()"><span class="ricon">⧉!</span><span class="rlabel">Đánh dấu trùng</span></button>
+      <button class="rbtn" onclick="clearCellFmt()"><span class="ricon">A✕</span><span class="rlabel">Xóa định dạng ô</span></button>
     </div><div class="glabel">Xem lại</div></div>
   </div>
   <div class="rpanel" id="rp-excel-view" data-app="excel" data-tab="view">
     <div class="rgroup"><div class="rbtns">
       <button class="rbtn" onclick="toggleGridlines()"><span class="ricon">▦</span><span class="rlabel">Đường lưới</span></button>
+      <button class="rbtn" onclick="setZoom(50)"><span class="ricon">50%</span><span class="rlabel">Thu phóng 50%</span></button>
       <button class="rbtn" onclick="setZoom(100)"><span class="ricon">100%</span><span class="rlabel">Thu phóng 100%</span></button>
+      <button class="rbtn" onclick="setZoom(150)"><span class="ricon">150%</span><span class="rlabel">Thu phóng 150%</span></button>
+      <button class="rbtn" onclick="toggleFreezeTopRow()"><span class="ricon">❄</span><span class="rlabel">Đóng băng hàng đầu</span></button>
+      <button class="rbtn" onclick="toggleShowFormulas()"><span class="ricon">fx</span><span class="rlabel">Hiện công thức</span></button>
     </div><div class="glabel">Xem</div></div>
   </div>
 
@@ -197,20 +287,39 @@
       <button class="rbtn" onclick="deleteCurrentSlide()"><span class="ricon">− Slide</span><span class="rlabel">Xóa slide này</span></button>
       <button class="rbtn" onclick="moveCurrentSlide(-1)"><span class="ricon">↑</span><span class="rlabel">Slide lên</span></button>
       <button class="rbtn" onclick="moveCurrentSlide(1)"><span class="ricon">↓</span><span class="rlabel">Slide xuống</span></button>
+      <button class="rbtn primary" onclick="presentDeck()"><span class="ricon">▶</span><span class="rlabel">Trình chiếu</span></button>
     </div><div class="glabel">Slide</div></div>
     <div class="rgroup"><div class="rbtns">
-      <button class="rbtn" onclick="saveDeck()"><span class="ricon">Lưu</span><span class="rlabel">Lưu vào máy</span></button>
-      <button class="rbtn" onclick="exportPptx()"><span class="ricon">.pptx</span><span class="rlabel">Xuất .pptx</span></button>
-      <button class="rbtn primary" onclick="presentDeck()"><span class="ricon">▶</span><span class="rlabel">Trình chiếu</span></button>
-    </div><div class="glabel">Tệp</div></div>
+      <button class="rbtn" onclick="openSlideFontSheet()"><span class="ricon">Aa</span><span class="rlabel">Phông chữ</span></button>
+      <button class="rbtn" onclick="toggleSlideTitleFmt('b')"><span class="ricon"><b>B</b></span><span class="rlabel">Đậm</span></button>
+      <button class="rbtn" onclick="toggleSlideTitleFmt('i')"><span class="ricon"><i>I</i></span><span class="rlabel">Nghiêng</span></button>
+      <button class="rbtn" onclick="toggleSlideTitleFmt('u')"><span class="ricon"><u>U</u></span><span class="rlabel">Gạch chân</span></button>
+      <button class="rbtn" onclick="openSlideTitleColorSheet()"><span class="ricon" style="color:#c00000">A</span><span class="rlabel">Màu chữ</span></button>
+    </div><div class="glabel">Phông chữ</div></div>
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="setSlideAlign('left')"><span class="ricon">≡</span><span class="rlabel">Trái</span></button>
+      <button class="rbtn" onclick="setSlideAlign('center')"><span class="ricon">≡</span><span class="rlabel">Giữa</span></button>
+      <button class="rbtn" onclick="setSlideAlign('right')"><span class="ricon">≡</span><span class="rlabel">Phải</span></button>
+      <button class="rbtn" onclick="toggleSlideBullets()"><span class="ricon">• ≡</span><span class="rlabel">Gạch đầu dòng</span></button>
+    </div><div class="glabel">Đoạn</div></div>
   </div>
   <div class="rpanel" id="rp-ppt-insert" data-app="ppt" data-tab="insert">
     <div class="rgroup"><div class="rbtns">
       <button class="rbtn" onclick="pickSlideImage(currentSlide)"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="9" cy="10" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4 19l5-5 3 3 4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span><span class="rlabel">Ảnh</span></button>
       <button class="rbtn" onclick="insertDateBullet()"><span class="ricon">31/12</span><span class="rlabel">Ngày hôm nay</span></button>
+      <button class="rbtn" onclick="insertSlideShape('rect')"><span class="ricon">▭</span><span class="rlabel">Hình chữ nhật</span></button>
+      <button class="rbtn" onclick="insertSlideShape('circle')"><span class="ricon">●</span><span class="rlabel">Hình tròn</span></button>
+      <button class="rbtn" onclick="insertSlideShape('arrow')"><span class="ricon">➜</span><span class="rlabel">Mũi tên</span></button>
+      <button class="rbtn" onclick="insertSlideChart()"><span class="ricon">▂▃▅</span><span class="rlabel">Biểu đồ</span></button>
     </div><div class="glabel">Chèn</div></div>
   </div>
   <div class="rpanel" id="rp-ppt-design" data-app="ppt" data-tab="design">
+    <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="applySlideTheme('sang')"><span class="ricon" style="background:#fff;border:1px solid #999;color:#2b579a">Aa</span><span class="rlabel">Sáng xanh</span></button>
+      <button class="rbtn" onclick="applySlideTheme('kem')"><span class="ricon" style="background:#fdf6e3;border:1px solid #999;color:#5b4636">Aa</span><span class="rlabel">Kem ấm</span></button>
+      <button class="rbtn" onclick="applySlideTheme('la')"><span class="ricon" style="background:#e6f4ea;border:1px solid #999;color:#14532d">Aa</span><span class="rlabel">Xanh lá</span></button>
+      <button class="rbtn" onclick="applySlideTheme('toi')"><span class="ricon" style="background:#222;border:1px solid #999;color:#fff">Aa</span><span class="rlabel">Nền tối</span></button>
+    </div><div class="glabel">Chủ đề slide</div></div>
     <div class="rgroup"><div class="rbtns">
       <button class="rbtn" onclick="setSlideBg('#ffffff')"><span class="ricon" style="background:#fff;border:1px solid #999">&nbsp;</span><span class="rlabel">Nền trắng</span></button>
       <button class="rbtn" onclick="setSlideBg('#eaf3fb')"><span class="ricon" style="background:#eaf3fb;border:1px solid #999">&nbsp;</span><span class="rlabel">Nền xanh nhạt</span></button>
@@ -227,6 +336,8 @@
       <button class="rbtn" onclick="setTransition('none')"><span class="ricon">—</span><span class="rlabel">Không hiệu ứng</span></button>
       <button class="rbtn" onclick="setTransition('fade')"><span class="ricon">◐</span><span class="rlabel">Mờ dần</span></button>
       <button class="rbtn" onclick="setTransition('slide')"><span class="ricon">→</span><span class="rlabel">Trượt ngang</span></button>
+      <button class="rbtn" onclick="setTransition('up')"><span class="ricon">↑</span><span class="rlabel">Trượt dọc</span></button>
+      <button class="rbtn" onclick="setTransition('zoom')"><span class="ricon">⊕</span><span class="rlabel">Phóng to</span></button>
     </div><div class="glabel">Hiệu ứng chuyển slide</div></div>
   </div>
   <div class="rpanel" id="rp-ppt-show" data-app="ppt" data-tab="show">
@@ -234,17 +345,24 @@
       <button class="rbtn primary" onclick="presentDeck()"><span class="ricon">▶</span><span class="rlabel">Từ đầu</span></button>
       <button class="rbtn" onclick="presentFromCurrent()"><span class="ricon">▶▸</span><span class="rlabel">Từ slide này</span></button>
       <button class="rbtn" onclick="exitPresent()"><span class="ricon">✕</span><span class="rlabel">Kết thúc</span></button>
+      <button class="rbtn" onclick="toggleSlideHidden()"><span class="ricon">⊘</span><span class="rlabel">Ẩn slide này</span></button>
+      <button class="rbtn" onclick="toggleAutoAdvance()"><span class="ricon">⏱</span><span class="rlabel">Tự chuyển 5s</span></button>
     </div><div class="glabel">Trình chiếu</div></div>
   </div>
   <div class="rpanel" id="rp-ppt-review" data-app="ppt" data-tab="review">
     <div class="rgroup"><div class="rbtns">
+      <button class="rbtn" onclick="toggleSlideSpellcheck()"><span class="ricon">ABC ✓</span><span class="rlabel">Chính tả</span></button>
+      <button class="rbtn" onclick="insertSlideComment()"><span class="ricon">✎</span><span class="rlabel">Nhận xét</span></button>
       <button class="rbtn" onclick="toggleDeckLock()"><span class="ricon">Khóa</span><span class="rlabel">Bảo vệ bài</span></button>
+      <button class="rbtn" onclick="gotoTab('translate')"><span class="ricon">A→B</span><span class="rlabel">Dịch</span></button>
     </div><div class="glabel">Xem lại</div></div>
   </div>
   <div class="rpanel" id="rp-ppt-view" data-app="ppt" data-tab="view">
     <div class="rgroup"><div class="rbtns">
       <button class="rbtn" onclick="toggleThumbs()"><span class="ricon">▤</span><span class="rlabel">Panel slide</span></button>
+      <button class="rbtn" onclick="setZoom(50)"><span class="ricon">50%</span><span class="rlabel">Thu phóng 50%</span></button>
       <button class="rbtn" onclick="setZoom(100)"><span class="ricon">100%</span><span class="rlabel">Thu phóng 100%</span></button>
+      <button class="rbtn" onclick="setZoom(150)"><span class="ricon">150%</span><span class="rlabel">Thu phóng 150%</span></button>
     </div><div class="glabel">Xem</div></div>
   </div>
 </div>
@@ -258,16 +376,12 @@
   <div class="workarea" id="wordWork"><div class="page" id="wordPage">
     <div id="ruler" aria-hidden="true"><div id="rulerNums"></div><div id="rulerMarkLeft" class="rulermark"></div><div id="rulerMarkRight" class="rulermark"></div></div>
     <div id="editor" contenteditable="true" spellcheck="true" aria-label="Vùng soạn thảo"></div>
-  </div></div>
+  </div><div id="splitPane" aria-label="Khung xem thứ hai (chia cửa sổ)" style="display:none"></div></div>
   <input type="file" id="docImageInput" accept="image/*" style="display:none">
-  <div class="row">
-    <button onclick="exportTxt()">Xuất .txt</button>
-    <button onclick="exportDocx()">Xuất .docx</button>
-    <button onclick="translateSelection()">Dịch đoạn đang chọn rồi chèn dưới đoạn gốc</button>
-  </div>
-  <p class="small">Lưu vào máy của trình duyệt, mở lại giữ đúng định dạng (font, cỡ, đậm/nghiêng/gạch chân/gạch ngang, màu, tô sáng, căn lề, danh sách, bảng). Xuất .docx dùng định dạng chuẩn Office, Word/LibreOffice mở được.</p>
-  <h3>Tài liệu đã lưu trên máy</h3>
-  <div id="docList"></div>
+  <!-- Bản 1.4: vùng làm việc Word chỉ còn trang giấy + thanh trạng thái.
+       Nút Xuất .txt/.docx và Dịch vẫn có trong ribbon/khung Tệp; danh sách
+       tài liệu đã lưu chuyển hẳn vào khung Tệp → Mở (renderDocList vẫn chạy
+       nhưng không còn khối hiển thị riêng dưới trang giấy). -->
 </section>
 
 <!-- ============ EXCEL ============ -->
@@ -281,10 +395,10 @@
     <span id="fxMark">fx</span>
     <input type="text" id="formulaBar" aria-label="Thanh công thức" placeholder="Nhập giá trị hoặc công thức, ví dụ =SUM(A1:A3)">
   </div>
-  <div class="workarea" id="sheetWork"><div id="sheetWrap"><table class="sheet" id="sheetTable"></table></div></div>
+  <div class="workarea" id="sheetWork"><div id="sheetWrap"><table class="sheet" id="sheetTable"></table></div><div id="sheetChart" style="display:none"></div></div>
   <div id="sheettabs" role="tablist" aria-label="Các trang tính"><button class="sheet-tab active">Sheet1</button><span class="small" id="sheetTabNote">Bảng tính này dùng một trang tính (Sheet1).</span></div>
-  <h3>Bảng tính đã lưu trên máy</h3>
-  <div id="sheetList"></div>
+  <!-- Bản 1.4: vùng làm việc Excel chỉ còn lưới + thẻ sheet + thanh trạng thái.
+       Danh sách bảng tính đã lưu chuyển hẳn vào khung Tệp → Mở. -->
 </section>
 
 <!-- ============ POWERPOINT ============ -->
@@ -295,8 +409,8 @@
   <input type="text" id="deckName" placeholder="Tên bài trình bày (ví dụ: Báo cáo tháng)" aria-label="Tên bài trình bày" style="display:none">
   <div id="slideLayout"><div id="slideEditor"></div></div>
   <input type="file" id="slideImageInput" accept="image/*" style="display:none">
-  <h3>Bài trình bày đã lưu trên máy</h3>
-  <div id="deckList"></div>
+  <!-- Bản 1.4: vùng làm việc PowerPoint chỉ còn khung slide + thanh trạng thái.
+       Danh sách bài đã lưu chuyển hẳn vào khung Tệp → Mở. -->
 </section>
 
 <!-- ============ PDF / OCR / CAMERA ============ -->
@@ -429,7 +543,7 @@
   <div id="settingsStatus" class="small"></div>
 
   <h3>Kiểm chứng font tiếng Việt</h3>
-  <p>Đoạn kiểm chứng — bấm từng nút để đổi font, xem dấu có vỡ không. Font mặc định là <b>Carlito</b> (metric tương đương Calibri, có subset vietnamese đã kiểm chứng). Danh sách chỉ gồm 6 font dưới đây, vì cả 6 đều có subset <b>vietnamese</b> trên Google Fonts. Font dự phòng hệ thống: -apple-system, “Segoe UI”, sans-serif.</p>
+  <p>Đoạn kiểm chứng — bấm từng nút để đổi font, xem dấu có vỡ không. Font mặc định là <b>Carlito</b> (metric tương đương Calibri, nhúng nội bộ từ bản 1.4, đủ dấu tiếng Việt). 5 font còn lại chỉ là tên font dự phòng trên máy người dùng, không tải từ mạng.</p>
   <p id="fontTest">Tiếng Việt có dấu: à á ả ã ạ, ồ ộ ổ, ứ ự ử, đ, ê, ơ, ư — Bác sĩ Nguyễn Văn Đô đi học ở Hà Nội</p>
   <div class="row">
     <button onclick="testFont('Carlito')">Carlito (mặc định)</button>
@@ -439,11 +553,11 @@
     <button onclick="testFont('Noto Sans')">Noto Sans</button>
     <button onclick="testFont('Noto Serif')">Noto Serif</button>
   </div>
-  <p class="small">Cách kiểm chứng: (1) đối chiếu metadata Google Fonts — Carlito và cả 5 font còn lại đều trả unicode-range phủ dấu tiếng Việt (riêng Carlito: khối vietnamese U+1EA0–1EF9 cùng các khối Latin mở rộng); (2) đoạn trên chứa đủ thanh dấu, nguyên âm đôi và chữ đ; (3) kiểm tra bằng fontTools trên file subset vietnamese + latin của Carlito: hợp hai subset phủ đủ mọi ký tự trong đoạn kiểm chứng, không thiếu glyph nào. Bước nhìn bằng mắt cuối cùng vẫn cần Bùi kiểm tra trên máy thật.</p>
+  <p class="small">Cách kiểm chứng: (1) file Carlito nhúng nội bộ (fonts/Carlito-*.ttf, giấy phép OFL) chứa đủ khối vietnamese U+1EA0–1EF9 cùng các khối Latin mở rộng; (2) đoạn trên chứa đủ thanh dấu, nguyên âm đôi và chữ đ. Bước nhìn bằng mắt cuối cùng vẫn cần Bùi kiểm tra trên máy thật.</p>
   <h3>Phần nào cần mạng, phần nào chạy ngoại tuyến</h3>
   <ul>
     <li><b>Ngoại tuyến:</b> soạn thảo, bảng tính, trình chiếu, lưu/mở lại, xuất txt/docx/csv/xlsx/pptx, chú thích PDF đã tải pdf.js, chụp ảnh tạo PDF (sau khi chụp xong).</li>
-    <li><b>Cần mạng:</b> tải pdf.js lần đầu, tải Tesseract.js + dữ liệu vie+eng lần đầu, dịch MyMemory, đăng nhập và đồng bộ Drive/OneDrive, tải Google Fonts lần đầu (sau đó trình duyệt lưu đệm).</li>
+    <li><b>Cần mạng:</b> tải pdf.js lần đầu, tải Tesseract.js + dữ liệu vie+eng lần đầu, dịch MyMemory, đăng nhập và đồng bộ Drive/OneDrive. Font Carlito nhúng nội bộ nên <b>không cần mạng</b> từ bản 1.4.</li>
   </ul>
   <p><a href="README.md">README của bản web</a></p>
 </section>
@@ -487,6 +601,8 @@
     <button onclick="exitPresent()">Thoát</button>
   </div>
 </div>
+<!-- Nút thoát chế độ đọc (chỉ hiện khi đang ở chế độ đọc) -->
+<button id="exitReadingBtn" onclick="toggleReadingMode()" style="display:none">Thoát chế độ đọc</button>
 <!-- Bottom sheet dùng chung -->
 <div class="sheet-backdrop" id="sheetBackdrop" onclick="closeSheet()"></div>
 <div class="bsheet" id="sheet" role="dialog" aria-modal="true"><h3 id="sheetTitle">Chọn</h3><div id="sheetBody"></div><button onclick="closeSheet()">Đóng</button></div>

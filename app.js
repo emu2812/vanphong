@@ -139,8 +139,11 @@ function deleteDoc(id){
   if(currentDocId===id)newDoc();renderDocList();renderFileList();
 }
 function renderDocList(){
+  /* Bản 1.4: khối danh sách dưới vùng làm việc đã chuyển vào khung Tệp → Mở;
+     giữ hàm để mọi chỗ gọi cũ không vỡ khi phần tử không còn trong DOM. */
+  var el=$('docList');if(!el)return;
   var docs=loadJSON('vb_docs_v1',[]);
-  $('docList').innerHTML=docs.length?docs.map(function(d){
+  el.innerHTML=docs.length?docs.map(function(d){
     return '<div class="fileitem"><b>'+esc(d.name)+'</b><span class="small">'+new Date(d.updatedAt).toLocaleString('vi-VN')+'</span>'
       +'<button onclick="openDoc(\''+d.id+'\')">Mở</button>'
       +'<button onclick="deleteDoc(\''+d.id+'\')">Xóa</button></div>';
@@ -409,16 +412,43 @@ function evalCell(r,c,seen){
     return res;
   }catch(e){return '#LỖI'}
 }
-function displayCell(r,c){var v=evalCell(r,c);return (v==null?'':String(v))}
+function displayCell(r,c){
+  /* Bản 1.4: hiện công thức dạng thô khi bật “Hiện công thức”; ngược lại áp
+     định dạng số của ô (tiền / % / số thập phân) lên giá trị đã tính. */
+  if(showFormulasFlag)return sheetRaw[r]?(sheetRaw[r][c]||''):'' ;
+  var v=evalCell(r,c);if(v==null)return '';
+  var f=cellFmt[cellFmtKey(r,c)]||{};
+  var isNum=(typeof v==='number')||(/^-?\d+(\.\d+)?$/.test(String(v).trim()));
+  var num=parseFloat(v);
+  if(isNum&&f.num==='money')return num.toLocaleString('vi-VN')+' ₫';
+  if(isNum&&f.num==='percent')return (num*100).toLocaleString('vi-VN')+'%';
+  if(isNum&&f.dec!=null)return num.toFixed(f.dec);
+  return String(v);
+}
 function renderSheet(){
   var html='<tr><th></th>';
   for(var c=0;c<SHEET_COLS;c++)html+='<th>'+colName(c)+'</th>';
   html+='</tr>';
   for(var r=0;r<SHEET_ROWS;r++){
-    html+='<tr><th>'+(r+1)+'</th>';
+    /* Bản 1.4: lọc ẩn hàng không khớp (display:none nhưng vẫn giữ hàng để
+       chỉ số hàng không lệch); định dạng ô áp qua style nội tuyến. */
+    var hideRow=sheetFilter&&String(sheetRaw[r][sheetFilter.c]||'').toLowerCase().indexOf(sheetFilter.text)<0;
+    html+='<tr'+(hideRow?' style="display:none"':'')+'><th>'+(r+1)+'</th>';
     for(var cc=0;cc<SHEET_COLS;cc++){
       var sel=(selCell.r===r&&selCell.c===cc)?' selected':'';
-      html+='<td class="cell'+sel+'" data-r="'+r+'" data-c="'+cc+'"><div class="cellval">'+esc(displayCell(r,cc))+'</div></td>';
+      var fm=cellFmt[cellFmtKey(r,cc)]||{};
+      var st='';
+      if(fm.b)st+='font-weight:700;';
+      if(fm.i)st+='font-style:italic;';
+      if(fm.u)st+='text-decoration:underline;';
+      if(fm.color)st+='color:'+fm.color+';';
+      if(fm.bg)st+='background-color:'+fm.bg+';';
+      else if(dupKeys[cellFmtKey(r,cc)])st+='background-color:#fde68a;';
+      if(fm.align)st+='text-align:'+fm.align+';';
+      if(fm.valign)st+='vertical-align:'+fm.valign+';';
+      var wrapStyle=fm.wrap?'white-space:normal;word-break:break-word;':'';
+      var noteMark=fm.note?' ◐':'';
+      html+='<td class="cell'+sel+'" data-r="'+r+'" data-c="'+cc+'" style="'+st+'"><div class="cellval" style="'+wrapStyle+'"'+(fm.note?' title="'+esc(fm.note)+'"':'')+'>'+esc(displayCell(r,cc))+noteMark+'</div></td>';
     }
     html+='</tr>';
   }
@@ -443,23 +473,24 @@ function editCell(td,r,c){
   inp.addEventListener('blur',commit);
   inp.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();commit()}});
 }
-function newSheet(){currentSheetId=null;$('sheetName').value='';sheetRaw=Array.from({length:SHEET_ROWS},function(){return Array(SHEET_COLS).fill('')});sheetUndo=[];sheetRedo=[];renderSheet();updateStatusBar();}
+function newSheet(){currentSheetId=null;$('sheetName').value='';sheetRaw=Array.from({length:SHEET_ROWS},function(){return Array(SHEET_COLS).fill('')});cellFmt={};dupKeys={};sheetFilter=null;sheetUndo=[];sheetRedo=[];renderSheet();updateStatusBar();}
 function saveSheet(silent){
   var name=$('sheetName').value.trim()||('Bảng tính '+(new Date()).toLocaleDateString('vi-VN'));
   if(!currentSheetId)name=uniqueName('sheet',name);
   var sheets=loadJSON('vb_sheets_v1',[]);
-  var rec={id:currentSheetId||uid(),name:name,raw:sheetRaw,updatedAt:Date.now(),syncStatus:'local'};
+  var rec={id:currentSheetId||uid(),name:name,raw:sheetRaw,fmt:cellFmt,updatedAt:Date.now(),syncStatus:'local'};
   if(currentSheetId){var s=sheets.find(function(x){return x.id===currentSheetId});if(s){Object.assign(s,rec)}else sheets.unshift(rec)}
   else{currentSheetId=rec.id;sheets.unshift(rec)}
   saveJSON('vb_sheets_v1',sheets);renderSheetList();renderFileList();if(!silent)alert('Đã lưu bảng tính vào máy: '+name);updateTitleBar();updateStatusBar();
 }
 function openSheetRec(id){
   var s=loadJSON('vb_sheets_v1',[]).find(function(x){return x.id===id});if(!s)return;
-  currentSheetId=s.id;$('sheetName').value=s.name;sheetRaw=normalizeSheetRaw(s.raw);renderSheet();gotoTab('sheet');updateStatusBar();
+  currentSheetId=s.id;$('sheetName').value=s.name;sheetRaw=normalizeSheetRaw(s.raw);cellFmt=s.fmt||{};renderSheet();gotoTab('sheet');updateStatusBar();
 }
 function renderSheetList(){
+  var el=$('sheetList');if(!el)return;
   var sheets=loadJSON('vb_sheets_v1',[]);
-  $('sheetList').innerHTML=sheets.length?sheets.map(function(s){
+  el.innerHTML=sheets.length?sheets.map(function(s){
     return '<div class="fileitem"><b>'+esc(s.name)+'</b><span class="small">'+new Date(s.updatedAt).toLocaleString('vi-VN')+'</span>'
       +'<button onclick="openSheetRec(\''+s.id+'\')">Mở</button><button onclick="deleteSheet(\''+s.id+'\')">Xóa</button></div>';
   }).join(''):'<p class="small">Chưa có bảng tính nào.</p>';
@@ -1238,7 +1269,7 @@ function renderSlideEditor(){
   if(currentSlide>=deckSlides.length)currentSlide=deckSlides.length-1;
   if(currentSlide<0)currentSlide=0;
   var thumbs=deckSlides.map(function(s,i){
-    var t=s.title||'(Chưa có tiêu đề)';var b=slideBullets(s)[0]||'';
+    var t=(s.hidden?'(Ẩn) ':'')+(s.title||'(Chưa có tiêu đề)');var b=slideBullets(s)[0]||'';
     return '<button class="thumb'+(i===currentSlide?' active':'')+'" onclick="selectSlide('+i+')"><span class="tnum">Slide '+(i+1)+'</span><span class="ttitle">'+esc(t)+'</span><span class="tbody">'+esc(b)+'</span></button>';
   }).join('');
   var s=deckSlides[currentSlide];
@@ -1246,14 +1277,21 @@ function renderSlideEditor(){
     ?'<img class="slideimg" src="'+s.image+'" alt="Ảnh slide"><div class="row"><button onclick="removeSlideImage('+currentSlide+')">Xóa ảnh này</button></div>'
     :'<div class="row"><button onclick="pickSlideImage('+currentSlide+')">Chèn ảnh vào slide này</button></div>';
   var dis=deckLocked?' disabled':'';
-  var transLabel={none:'Không',fade:'Mờ dần',slide:'Trượt ngang'}[deckTransition]||'Không';
-  wrap.innerHTML='<div id="slideThumbs">'+thumbs+'</div><div id="slideMain"><div class="slideframe'+(deckSize==='4:3'?' ratio-43':'')+'" style="background:'+(s.bg||'#ffffff')+'">'
+  var transLabel={none:'Không',fade:'Mờ dần',slide:'Trượt ngang',up:'Trượt dọc',zoom:'Phóng to'}[deckTransition]||'Không';
+  var titleStyle='color:'+(s.titleColor||'#1a1a1a')+';'+(s.titleB?'font-weight:700;':'')+(s.titleI?'font-style:italic;':'')+(s.titleU?'text-decoration:underline;':'');
+  var bodyStyle='text-align:'+(s.align||'left')+';';
+  var shapeRow=(s.shapes&&s.shapes.length)?'<div class="row"><button onclick="removeLastSlideShape()">Xóa hình vừa chèn</button></div>':'';
+  var commentHtml=s.comment?'<p class="small">Nhận xét: '+esc(s.comment)+'</p>':'';
+  wrap.innerHTML='<div id="slideThumbs">'+thumbs+'</div><div id="slideMain"><div class="slideframe'+(deckSize==='4:3'?' ratio-43':'')+'" style="background:'+(s.bg||'#ffffff')+';'+(s.font?'font-family:\''+s.font+'\', sans-serif;':'')+'">'
     +'<label>Tiêu đề slide '+(currentSlide+1)+':</label>'
-    +'<input type="text" value="'+esc(s.title||'')+'" oninput="updateSlideTitle('+currentSlide+',this.value)" placeholder="Tiêu đề slide" aria-label="Tiêu đề slide"'+dis+'>'
-    +'<label>Nội dung — mỗi dòng một ý gạch đầu dòng:</label>'
-    +'<textarea oninput="updateSlideBullets('+currentSlide+',this.value)" placeholder="Ý thứ nhất&#10;Ý thứ hai" aria-label="Nội dung slide"'+dis+'>'+esc((s.bullets||[]).join('\n'))+'</textarea>'
+    +'<input type="text" value="'+esc(s.title||'')+'" oninput="updateSlideTitle('+currentSlide+',this.value)" placeholder="Tiêu đề slide" aria-label="Tiêu đề slide" style="'+titleStyle+'"'+dis+'>'
+    +'<label>Nội dung — mỗi dòng một ý'+(s.bulletsOn===false?' (đang tắt gạch đầu dòng)':' gạch đầu dòng')+':</label>'
+    +'<textarea oninput="updateSlideBullets('+currentSlide+',this.value)" placeholder="Ý thứ nhất&#10;Ý thứ hai" aria-label="Nội dung slide" style="'+bodyStyle+'" spellcheck="'+(pptSpellOn?'true':'false')+'"'+dis+'>'+esc((s.bullets||[]).join('\n'))+'</textarea>'
     +imgHtml
-    +'</div><p class="small">Slide '+(currentSlide+1)+' / '+deckSlides.length+' • Hiệu ứng chuyển: '+transLabel+(deckLocked?' • Đang bảo vệ (khóa sửa)':'')+'</p>'
+    +slideShapesHtml(s)+shapeRow
+    +slideChartHtml(s)
+    +commentHtml
+    +'</div><p class="small">Slide '+(currentSlide+1)+' / '+deckSlides.length+' • Hiệu ứng chuyển: '+transLabel+(s.hidden?' • Slide này đang Ẩn (trình chiếu sẽ bỏ qua)':'')+(deckLocked?' • Đang bảo vệ (khóa sửa)':'')+'</p>'
     +'<div class="row"><button onclick="selectSlide('+(currentSlide-1)+')">Slide trước</button><button onclick="selectSlide('+(currentSlide+1)+')">Slide sau</button><button onclick="addSlide()">Thêm slide</button><button onclick="presentFromCurrent()">Trình chiếu từ slide này</button></div></div>';
 }
 function updateSlideTitle(i,v){if(deckLocked){alert('Bài trình bày đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}if(deckSlides[i])deckSlides[i].title=v;updateStatusBar()}
@@ -1275,7 +1313,7 @@ function newDeck(){currentDeckId=null;$('deckName').value='';deckSlides=[emptySl
 function saveDeck(silent){
   var name=$('deckName').value.trim()||('Bài trình bày '+(new Date()).toLocaleDateString('vi-VN'));
   if(!currentDeckId)name=uniqueName('deck',name);
-  var slides=deckSlides.map(function(s){return {title:s.title||'',bullets:s.bullets||[],image:s.image||null,imageW:s.imageW||0,imageH:s.imageH||0,bg:s.bg||''}});
+  var slides=deckSlides.map(function(s){return {title:s.title||'',bullets:s.bullets||[],image:s.image||null,imageW:s.imageW||0,imageH:s.imageH||0,bg:s.bg||'',font:s.font||'',titleB:!!s.titleB,titleI:!!s.titleI,titleU:!!s.titleU,titleColor:s.titleColor||'',align:s.align||'left',bulletsOn:s.bulletsOn!==false,shapes:s.shapes||[],chart:s.chart||null,comment:s.comment||'',hidden:!!s.hidden}});
   var decks=loadJSON('vb_decks_v1',[]);
   var rec={id:currentDeckId||uid(),name:name,slides:slides,updatedAt:Date.now(),syncStatus:'local',size:deckSize,transition:deckTransition};
   if(currentDeckId){var d=decks.find(function(x){return x.id===currentDeckId});if(d){Object.assign(d,rec)}else decks.unshift(rec)}
@@ -1285,7 +1323,7 @@ function saveDeck(silent){
 function openDeck(id){
   var d=loadJSON('vb_decks_v1',[]).find(function(x){return x.id===id});if(!d)return;
   currentDeckId=d.id;$('deckName').value=d.name;
-  deckSlides=(d.slides&&d.slides.length)?d.slides.map(function(s){return {title:s.title||'',bullets:s.bullets||[],image:s.image||null,imageW:s.imageW||0,imageH:s.imageH||0,bg:s.bg||''}}):[emptySlide()];
+  deckSlides=(d.slides&&d.slides.length)?d.slides.map(function(s){return {title:s.title||'',bullets:s.bullets||[],image:s.image||null,imageW:s.imageW||0,imageH:s.imageH||0,bg:s.bg||'',font:s.font||'',titleB:!!s.titleB,titleI:!!s.titleI,titleU:!!s.titleU,titleColor:s.titleColor||'',align:s.align||'left',bulletsOn:s.bulletsOn!==false,shapes:s.shapes||[],chart:s.chart||null,comment:s.comment||'',hidden:!!s.hidden}}):[emptySlide()];
   deckSize=d.size||'16:9';deckTransition=d.transition||'none';currentSlide=0;
   renderSlideEditor();gotoTab('slides');
 }
@@ -1295,8 +1333,9 @@ function deleteDeck(id){
   if(currentDeckId===id)newDeck();renderDeckList();renderFileList();
 }
 function renderDeckList(){
+  var el=$('deckList');if(!el)return;
   var decks=loadJSON('vb_decks_v1',[]);
-  $('deckList').innerHTML=decks.length?decks.map(function(d){
+  el.innerHTML=decks.length?decks.map(function(d){
     return '<div class="fileitem"><b>'+esc(d.name)+'</b><span class="small">'+(d.slides?d.slides.length:0)+' slide • '+new Date(d.updatedAt).toLocaleString('vi-VN')+'</span>'
       +'<button onclick="openDeck(\''+d.id+'\')">Mở</button>'
       +'<button onclick="downloadDeckPptx(\''+d.id+'\')">Tải .pptx</button>'
@@ -1332,30 +1371,40 @@ $('slideImageInput').addEventListener('change',function(){
 var presentSlides=[],presentIndex=0,presentTouchX=null;
 function presentDeck(){
   if(!deckSlides.length)deckSlides=[emptySlide()];
-  presentSlides=JSON.parse(JSON.stringify(deckSlides));
+  var vis=visibleSlides();
+  if(!vis.length){alert('Tất cả slide đang bị ẩn — hiện lại ít nhất 1 slide rồi trình chiếu.');return}
+  presentSlides=JSON.parse(JSON.stringify(vis.map(function(v){return v.slide})));
   presentIndex=0;
   $('presentOverlay').style.display='flex';
-  renderPresentSlide();
+  renderPresentSlide();startAutoAdvance();
   var ov=$('presentOverlay');
   if(ov.requestFullscreen){ov.requestFullscreen().catch(function(){/* không vào được fullscreen thì vẫn xem bằng lớp phủ toàn màn hình */});}
 }
 function renderPresentSlide(){
   var s=presentSlides[presentIndex]||emptySlide();
   var bullets=slideBullets(s);
-  var html='<h2>'+esc(s.title||'(Chưa có tiêu đề)')+'</h2>';
-  if(bullets.length)html+='<ul>'+bullets.map(function(b){return '<li>'+esc(b)+'</li>'}).join('')+'</ul>';
+  var titleColor=s.titleColor||((s.bg&&s.bg!=='#ffffff')?'#1a1a1a':'#ffffff');
+  var html='<h2 style="color:'+titleColor+'">'+esc(s.title||'(Chưa có tiêu đề)')+'</h2>';
+  if(bullets.length){
+    if(s.bulletsOn===false)html+='<div>'+bullets.map(function(b){return '<p style="font-size:24px;line-height:1.6">'+esc(b)+'</p>'}).join('')+'</div>';
+    else html+='<ul>'+bullets.map(function(b){return '<li>'+esc(b)+'</li>'}).join('')+'</ul>';
+  }
   if(s.image)html+='<img class="presentimg" src="'+s.image+'" alt="Ảnh slide '+(presentIndex+1)+'">';
-  if(!bullets.length&&!s.image)html+='<p style="font-size:21px;opacity:.75">Slide này chưa có nội dung. Bấm “✕ Thoát” để về soạn thêm.</p>';
+  html+=slideShapesHtml(s,true)+slideChartHtml(s);
+  if(!bullets.length&&!s.image&&!(s.shapes&&s.shapes.length)&&!(s.chart&&s.chart.length))html+='<p style="font-size:21px;opacity:.75">Slide này chưa có nội dung. Bấm “✕ Thoát” để về soạn thêm.</p>';
   var ps=$('presentSlide');
   ps.innerHTML=html;
   ps.style.background=(s.bg||'#111111');
   ps.style.color=(s.bg&&s.bg!=='#ffffff')?'#1a1a1a':'#ffffff';
-  ps.className=(deckTransition==='fade')?'trans-fade':(deckTransition==='slide'?'trans-slide':'');
+  if(s.bg==='#222222')ps.style.color='#ffffff';
+  ps.className=(deckTransition==='fade')?'trans-fade':(deckTransition==='slide'?'trans-slide':(deckTransition==='up'?'trans-up':(deckTransition==='zoom'?'trans-zoom':'')));
   $('presentCounter').textContent='Slide '+(presentIndex+1)+' / '+presentSlides.length;
 }
 function presentNext(){if(presentIndex<presentSlides.length-1){presentIndex++;renderPresentSlide()}}
 function presentPrev(){if(presentIndex>0){presentIndex--;renderPresentSlide()}}
 function exitPresent(){
+  if(presentTimer)clearInterval(presentTimer);
+  presentTimer=null;
   $('presentOverlay').style.display='none';
   if(document.fullscreenElement&&document.exitFullscreen)document.exitFullscreen().catch(function(){});
 }
@@ -1530,6 +1579,9 @@ function renderRibbonTabs(){
     var cls=(t[0]==='file')?'filetab':(t[0]===ribbonTab?'active':'');
     return '<button class="'+cls+'" data-rtab="'+t[0]+'" onclick="switchRibbon(\''+t[0]+'\')">'+esc(t[1])+'</button>';
   }).join('');
+  /* Bản 1.4: tab đang chọn luôn cuộn vào tầm nhìn (không bị kẹt ngoài rìa
+     phải trên điện thoại). block:'nearest' để không cuộn trang dọc theo. */
+  try{var act=rt.querySelector('button.active');if(act)act.scrollIntoView({inline:'center',block:'nearest'});}catch(e){}
 }
 function switchRibbon(tab){
   if(tab==='file'){openBackstage();return}
@@ -1697,9 +1749,14 @@ function backstageShow(view){
 }
 /* Undo / Redo: Word dùng lệnh của trình duyệt; Excel/PowerPoint dùng ảnh chụp nhanh. */
 var sheetUndo=[],sheetRedo=[];
-function pushSheetHistory(){sheetUndo.push(JSON.stringify(sheetRaw));if(sheetUndo.length>50)sheetUndo.shift();sheetRedo=[];}
-function undoSheet(){if(!sheetUndo.length)return;sheetRedo.push(JSON.stringify(sheetRaw));sheetRaw=JSON.parse(sheetUndo.pop());renderSheet();updateStatusBar();}
-function redoSheet(){if(!sheetRedo.length)return;sheetUndo.push(JSON.stringify(sheetRaw));sheetRaw=JSON.parse(sheetRedo.pop());renderSheet();updateStatusBar();}
+function sheetSnapshot(){return JSON.stringify({raw:sheetRaw,fmt:cellFmt})}
+function sheetRestore(snap){
+  try{var o=JSON.parse(snap);if(o&&o.raw){sheetRaw=o.raw;cellFmt=o.fmt||{};return}}catch(e){}
+  sheetRaw=JSON.parse(snap);cellFmt={};
+}
+function pushSheetHistory(){sheetUndo.push(sheetSnapshot());if(sheetUndo.length>50)sheetUndo.shift();sheetRedo=[];}
+function undoSheet(){if(!sheetUndo.length)return;sheetRedo.push(sheetSnapshot());sheetRestore(sheetUndo.pop());renderSheet();updateStatusBar();}
+function redoSheet(){if(!sheetRedo.length)return;sheetUndo.push(sheetSnapshot());sheetRestore(sheetRedo.pop());renderSheet();updateStatusBar();}
 var deckUndo=[],deckRedo=[];
 function pushDeckHistory(){deckUndo.push(JSON.stringify(deckSlides));if(deckUndo.length>50)deckUndo.shift();deckRedo=[];}
 function undoDeck(){if(!deckUndo.length)return;deckRedo.push(JSON.stringify(deckSlides));deckSlides=JSON.parse(deckUndo.pop());if(currentSlide>=deckSlides.length)currentSlide=deckSlides.length-1;renderSlideEditor();updateStatusBar();}
@@ -1767,12 +1824,13 @@ function nodeText(node){
   return out;
 }
 function insertTOC(){
+  /* Bản 1.4: quét mọi tiêu đề trong tài liệu (kể cả tiêu đề lồng trong khối),
+     không chỉ nút con trực tiếp — mục lục cũ bỏ sót tiêu đề khi con trỏ đang
+     ở trong đoạn có định dạng lồng nhau. */
   var heads=[];
-  Array.from($('editor').childNodes||[]).forEach(function(n){
-    if(n.nodeType===1){
-      var tg=n.tagName.toLowerCase();
-      if(tg==='h1'||tg==='h2'||tg==='h3')heads.push({lv:tg,txt:nodeText(n).trim()});
-    }
+  Array.from($('editor').querySelectorAll('h1,h2,h3')).forEach(function(n){
+    var tg=n.tagName.toLowerCase();
+    if(nodeText(n).trim())heads.push({lv:tg,txt:nodeText(n).trim()});
   });
   if(!heads.length){alert('Chưa có tiêu đề nào (Tiêu đề 1/2/3) để lập mục lục. Đặt tiêu đề cho các phần trước, rồi bấm lại.');return}
   var html='<h2>Mục lục</h2>'+heads.map(function(h){
@@ -1906,10 +1964,19 @@ function toggleDeckLock(){
 }
 function presentFromCurrent(){
   if(!deckSlides.length)deckSlides=[emptySlide()];
-  presentSlides=JSON.parse(JSON.stringify(deckSlides));
-  presentIndex=Math.min(currentSlide,presentSlides.length-1);
+  var vis=visibleSlides();
+  if(!vis.length){alert('Tất cả slide đang bị ẩn — hiện lại ít nhất 1 slide rồi trình chiếu.');return}
+  presentSlides=JSON.parse(JSON.stringify(vis.map(function(v){return v.slide})));
+  var pos=0;vis.forEach(function(v,i){if(v.orig<=currentSlide)pos=i});
+  if(vis[pos].orig<currentSlide&&pos<vis.length-1&&vis[pos+1])pos=pos+1;
+  /* Nếu slide hiện tại đang ẩn thì bắt đầu từ slide hiện gần nhất sau nó. */
+  if(deckSlides[currentSlide]&&deckSlides[currentSlide].hidden){
+    var nxt=-1;vis.forEach(function(v,i){if(v.orig>currentSlide&&nxt<0)nxt=i});
+    pos=nxt>=0?nxt:vis.length-1;
+  }
+  presentIndex=pos;
   $('presentOverlay').style.display='flex';
-  renderPresentSlide();
+  renderPresentSlide();startAutoAdvance();
   var ov=$('presentOverlay');
   if(ov.requestFullscreen){ov.requestFullscreen().catch(function(){});}
 }
@@ -1926,6 +1993,463 @@ function presentFromCurrent(){
     compressToJpeg(f).then(function(d){insertHtmlAtCursor('<img src="'+d+'" alt="Ảnh chèn">');}).catch(function(e){alert('Không đọc được ảnh: '+e.message)});
   });
 })();
+
+/* ================= BẢN 1.4 — nút ribbon bổ sung (chỉ thêm, không sửa nút cũ) ================= */
+/* ---------- Word: bảng tạm / cỡ chữ / đoạn / tìm-thay / chèn / chủ đề / cột / tham chiếu ---------- */
+function docCut(){try{$('editor').focus();document.execCommand('cut')}catch(e){alert('Trình duyệt không cho cắt tự động — Bùi bôi đen rồi dùng phím tắt của máy.')}}
+function docCopy(){try{$('editor').focus();document.execCommand('copy');alert('Đã sao chép đoạn đang chọn.')}catch(e){alert('Trình duyệt không cho sao chép tự động — Bùi bôi đen rồi dùng phím tắt của máy.')}}
+function docPaste(){try{$('editor').focus();document.execCommand('paste')}catch(e){alert('Trình duyệt chặn dán tự động vì lý do bảo mật — Bùi bấm vào trang rồi dùng phím tắt Dán của máy (Ctrl+V).')}}
+var storedDocFormat=null,formatWaiting=false;
+function copyDocFormat(){
+  var sel=window.getSelection();if(!sel||!sel.rangeCount)return;
+  if(formatWaiting&&storedDocFormat){
+    /* Bấm lần 2: dán định dạng đã lấy vào đoạn đang chọn. */
+    var r=sel.getRangeAt(0);
+    if(!r.collapsed){try{var sp=document.createElement('span');Object.keys(storedDocFormat).forEach(function(k){sp.style[k]=storedDocFormat[k]});var frag=r.extractContents();sp.appendChild(frag);r.insertNode(sp);}catch(e){}}
+    formatWaiting=false;alert('Đã dán định dạng vào đoạn đang chọn.');return;
+  }
+  var node=sel.anchorNode;if(!node)return;
+  var el=node.nodeType===1?node:node.parentElement;if(!el)return;
+  var cs=getComputedStyle(el);
+  storedDocFormat={fontFamily:cs.fontFamily,fontSize:cs.fontSize,fontWeight:cs.fontWeight,fontStyle:cs.fontStyle,textDecoration:cs.textDecoration,color:cs.color,backgroundColor:cs.backgroundColor};
+  formatWaiting=true;
+  alert('Đã lấy định dạng của đoạn đang chọn. Bôi đen đoạn khác rồi bấm lại nút này để dán định dạng.');
+}
+function changeFontSize(delta){
+  var sel=window.getSelection();if(!sel||!sel.rangeCount)return;
+  var r=sel.getRangeAt(0);
+  if(r.collapsed){var ed=$('editor');var cur=parseFloat(getComputedStyle(ed).fontSize)||16;ed.style.fontSize=Math.max(8,cur+delta)+'px';return}
+  var node=r.startContainer;var el=node.nodeType===1?node:node.parentElement;
+  var cur2=el?parseFloat(getComputedStyle(el).fontSize)||16:16;
+  wrapSpan({fontSize:Math.max(8,cur2+delta)+'px'});
+}
+function docBlockEl(){
+  var sel=window.getSelection();if(!sel||!sel.rangeCount)return null;
+  var node=sel.anchorNode;var el=node.nodeType===1?node:node.parentElement;
+  while(el&&el!==$('editor')){
+    var tg=el.tagName.toLowerCase();
+    if(tg==='p'||tg==='h1'||tg==='h2'||tg==='h3'||tg==='li'||tg==='div')return el;
+    el=el.parentElement;
+  }
+  return null;
+}
+function openParaBgSheet(){
+  var colors=[['#ffffff','Không tô'],['#ffeb3b','Vàng'],['#ffc9c9','Hồng nhạt'],['#cfe8ff','Xanh nhạt'],['#e6f4ea','Xanh lá nhạt']];
+  openSheet('Chọn màu nền đoạn',colors.map(function(c){
+    return {label:'<span class="swatch" style="background:'+c[0]+'"></span>'+esc(c[1]),onClick:function(){var b=docBlockEl();if(b)b.style.backgroundColor=c[0]==='#ffffff'?'':c[0];}};
+  }));
+}
+function toggleParaBorder(){
+  var b=docBlockEl();if(!b)return;
+  if(b.style.border)b.style.border='';else b.style.border='1px solid #999';
+}
+function clearFindMarks(){
+  Array.from($('editor').querySelectorAll('mark.findmark')).forEach(function(m){
+    var p=m.parentNode;while(m.firstChild)p.insertBefore(m.firstChild,m);p.removeChild(m);p.normalize();
+  });
+}
+function findInDoc(){
+  clearFindMarks();
+  var term=prompt('Nhập từ cần tìm:');if(!term)return;
+  var count=0,first=null;
+  var walker=document.createTreeWalker($('editor'),NodeFilter.SHOW_TEXT,null,false);
+  var nodes=[];var n;while((n=walker.nextNode()))nodes.push(n);
+  nodes.forEach(function(tn){
+    var txt=tn.nodeValue;var idx=txt.indexOf(term);if(idx<0)return;
+    var frag=document.createDocumentFragment();var rest=txt;
+    while(true){
+      var i=rest.indexOf(term);
+      if(i<0){frag.appendChild(document.createTextNode(rest));break}
+      if(i>0)frag.appendChild(document.createTextNode(rest.slice(0,i)));
+      var mk=document.createElement('mark');mk.className='findmark';mk.textContent=term;frag.appendChild(mk);
+      count++;if(!first)first=mk;
+      rest=rest.slice(i+term.length);
+    }
+    tn.parentNode.replaceChild(frag,tn);
+  });
+  if(!count){alert('Không tìm thấy “'+term+'” trong tài liệu.');return}
+  if(first)first.scrollIntoView({block:'center'});
+  alert('Tìm thấy '+count+' chỗ có “'+term+'” (đã tô sáng vàng). Bấm Tìm lại để tìm từ khác.');
+}
+function replaceInDoc(){
+  var term=prompt('Nhập từ cần thay:');if(!term)return;
+  var rep=prompt('Thay bằng từ:');if(rep==null)return;
+  var walker=document.createTreeWalker($('editor'),NodeFilter.SHOW_TEXT,null,false);
+  var nodes=[];var nn;while((nn=walker.nextNode()))nodes.push(nn);
+  for(var k=0;k<nodes.length;k++){
+    var tn=nodes[k];var idx=tn.nodeValue.indexOf(term);if(idx<0)continue;
+    var before=tn.nodeValue.slice(0,idx),after=tn.nodeValue.slice(idx+term.length);
+    var parent=tn.parentNode;var wasMark=parent&&parent.tagName==='MARK';
+    tn.nodeValue=before+rep+after;
+    if(wasMark){var gp=parent.parentNode;while(parent.firstChild)gp.insertBefore(parent.firstChild,parent);gp.removeChild(parent);gp.normalize();}
+    var remain=0;var w2=document.createTreeWalker($('editor'),NodeFilter.SHOW_TEXT,null,false);var t2;while((t2=w2.nextNode())){var v=t2.nodeValue;var p=0;while((p=v.indexOf(term,p))>=0){remain++;p+=term.length}}
+    alert('Đã thay 1 chỗ “'+term+'” thành “'+rep+'”. Còn '+remain+' chỗ nữa — bấm lại để thay tiếp.');updateStatusBar();return;
+  }
+  alert('Không còn chỗ nào có “'+term+'” nữa.');
+}
+function insertPageNumber(){
+  /* Trang soạn là một trang giấy duy nhất nên số trang là nhãn tĩnh “Trang 1”
+     chèn tại con trỏ, không phải trường số trang tự nhảy khi in nhiều trang. */
+  insertHtmlAtCursor('<span>Trang 1</span>');
+}
+function insertDocHeader(){
+  if($('editor').querySelector('.doc-header')){alert('Tài liệu đã có đầu trang rồi — sửa trực tiếp dòng đầu trang.');return}
+  var txt=prompt('Nhập nội dung đầu trang:');if(!txt)return;
+  $('editor').insertAdjacentHTML('afterbegin','<div class="doc-header">'+esc(txt)+'</div>');
+}
+function insertDocFooter(){
+  if($('editor').querySelector('.doc-footer')){alert('Tài liệu đã có chân trang rồi — sửa trực tiếp dòng chân trang.');return}
+  var txt=prompt('Nhập nội dung chân trang:');if(!txt)return;
+  $('editor').insertAdjacentHTML('beforeend','<div class="doc-footer">'+esc(txt)+'</div>');
+}
+function insertDocLink(){
+  var url=prompt('Nhập địa chỉ liên kết (ví dụ https://example.com):');if(!url)return;
+  if(url.indexOf('://')<0)url='https://'+url;
+  var sel=window.getSelection();var txt=(sel&&sel.toString())||'';
+  var label=prompt('Nhập chữ hiển thị cho liên kết:',txt||url);if(!label)return;
+  insertHtmlAtCursor('<a href="'+esc(url)+'" target="_blank" rel="noopener">'+esc(label)+'</a>');
+}
+function openSymbolSheet(){
+  var chars=['©','®','™','°','±','×','÷','§','¶','•','–','—','‘','’','“','”','…','←','→','↑','↓','✓','★','♥','Ω','α','β','π','√','∞','≠','≤','≥','€','£','¥','₫'];
+  openSheet('Chọn ký tự đặc biệt để chèn',chars.map(function(ch){
+    return {label:ch+' — ký tự '+ch,onClick:function(){insertHtmlAtCursor(esc(ch))}};
+  }));
+}
+function applyDocTheme(name){
+  var themes={giay:['#ffffff','#1a1a1a','Carlito'],kem:['#fdf6e3','#5b4636','Noto Serif'],xanh:['#eaf3fb','#0b3d66','Be Vietnam Pro'],xanhla:['#e6f4ea','#14532d','Inter']};
+  var t=themes[name]||themes.giay;
+  setPageBg(t[0]);var ed=$('editor');ed.style.color=t[1];ed.style.fontFamily="'"+t[2]+"', -apple-system, 'Segoe UI', sans-serif";
+  $('fontLabel').textContent=t[2];
+}
+function setThemeFontSize(pt){$('editor').style.fontSize=pt}
+function setDocColumns(n){var ed=$('editor');ed.style.columnCount=n;ed.style.columnGap='32px'}
+function insertColumnBreak(){insertHtmlAtCursor('<p style="break-before:column"></p>')}
+function insertBookmark(){
+  var name=prompt('Nhập tên đánh dấu (không dấu, không khoảng trắng):');if(!name)return;
+  name=name.replace(/\s+/g,'-');
+  insertHtmlAtCursor('<span id="bm-'+esc(name)+'">⚓ '+esc(name)+'</span>');
+}
+function insertCitation(){
+  var tg=prompt('Nhập tác giả:');if(tg==null)return;
+  var nam=prompt('Nhập năm xuất bản:');if(nam==null)return;
+  var ten=prompt('Nhập tên tài liệu:');if(ten==null)return;
+  insertHtmlAtCursor('<p>('+esc(tg)+', '+esc(nam)+'). '+esc(ten)+'.</p>');
+}
+function insertFigureList(){
+  var imgs=$('editor').querySelectorAll('img');
+  if(!imgs.length){alert('Tài liệu chưa có ảnh nào để lập danh mục hình. Chèn ảnh trước (tab Chèn → Ảnh), rồi bấm lại.');return}
+  var html='<h2>Danh mục hình</h2>';
+  Array.from(imgs).forEach(function(im,i){
+    html+='<p>Hình '+(i+1)+' — '+(esc(im.getAttribute('alt')||'Ảnh chèn'))+'</p>';
+  });
+  insertHtmlAtCursor(html);
+}
+/* Theo dõi thay đổi: chặn ở beforeinput (trước khi chữ vào tài liệu) nên chữ
+   gõ mới được bọc <ins>, chữ xóa được giữ lại dạng <del> — không dùng diff
+   sau sự kiện nên không bịa lại vị trí xóa. Gõ bằng bộ gõ tiếng Việt (IME)
+   được cho qua mặc định để không vỡ dấu. */
+var trackChangesOn=false;
+(function(){
+  var ed=document.getElementById('editor');if(!ed)return;
+  ed.addEventListener('beforeinput',function(e){
+    if(!trackChangesOn)return;
+    var t=e.inputType||'';
+    if(t.indexOf('Composition')>=0)return;
+    if(t==='insertText'||t==='insertFromPaste'||t==='insertFromDrop'){
+      var txt='';
+      if(t==='insertText')txt=e.data||'';
+      else if(e.dataTransfer){try{txt=e.dataTransfer.getData('text/plain')||''}catch(err){}}
+      if(!txt)return;
+      e.preventDefault();document.execCommand('insertHTML',false,'<ins class="track-ins">'+esc(txt)+'</ins>');
+      return;
+    }
+    if(t.indexOf('delete')===0){
+      var sel=window.getSelection();if(!sel||!sel.rangeCount)return;
+      var r=sel.getRangeAt(0);
+      if(!r.collapsed){
+        var delTxt=r.toString();if(!delTxt)return;
+        e.preventDefault();r.deleteContents();document.execCommand('insertHTML',false,'<del class="track-del">'+esc(delTxt)+'</del>');
+        return;
+      }
+      /* Xóa 1 ký tự khi không bôi đen: chỉ xử lý khi ký tự nằm trong cùng nút chữ. */
+      try{
+        var node=r.startContainer,off=r.startOffset;
+        if(node.nodeType===3){
+          if(t.indexOf('Backward')>=0&&off>0){
+            var ch=node.nodeValue.charAt(off-1);e.preventDefault();
+            var rr=document.createRange();rr.setStart(node,off-1);rr.setEnd(node,off);rr.deleteContents();
+            document.execCommand('insertHTML',false,'<del class="track-del">'+esc(ch)+'</del>');
+          }else if(t.indexOf('Forward')>=0&&off<node.nodeValue.length){
+            var ch2=node.nodeValue.charAt(off);e.preventDefault();
+            var rr2=document.createRange();rr2.setStart(node,off);rr2.setEnd(node,off+1);rr2.deleteContents();
+            document.execCommand('insertHTML',false,'<del class="track-del">'+esc(ch2)+'</del>');
+          }
+        }
+      }catch(err){}
+    }
+  });
+  ed.addEventListener('input',function(){if(splitViewOn)syncSplitView()});
+})();
+function toggleTrackChanges(){
+  trackChangesOn=!trackChangesOn;
+  alert(trackChangesOn?'Đã bật Theo dõi thay đổi: chữ gõ mới hiện xanh gạch chân, chữ xóa giữ lại dạng gạch ngang.':'Đã tắt Theo dõi thay đổi: chữ gõ/xóa từ giờ trở lại bình thường (phần đã đánh dấu vẫn giữ nguyên).');
+}
+function acceptChanges(){
+  var ed=$('editor');
+  Array.from(ed.querySelectorAll('ins.track-ins')).forEach(function(el){var p=el.parentNode;while(el.firstChild)p.insertBefore(el.firstChild,el);p.removeChild(el)});
+  Array.from(ed.querySelectorAll('del.track-del')).forEach(function(el){el.parentNode.removeChild(el)});
+  updateStatusBar();
+}
+function rejectChanges(){
+  var ed=$('editor');
+  Array.from(ed.querySelectorAll('ins.track-ins')).forEach(function(el){el.parentNode.removeChild(el)});
+  Array.from(ed.querySelectorAll('del.track-del')).forEach(function(el){var p=el.parentNode;while(el.firstChild)p.insertBefore(el.firstChild,el);p.removeChild(el)});
+  updateStatusBar();
+}
+/* Chế độ đọc: ẩn ribbon + dải tab, chỉ còn trang giấy; nút Thoát hiện cố định. */
+var readingOn=false;
+function toggleReadingMode(){
+  readingOn=!readingOn;
+  /* Không gọi switchApp() ở đây: switchApp ghi đè body.className và sẽ
+     xóa mất class 'reading' vừa bật (lỗi phát hiện khi kiểm khói 1.4). */
+  document.body.classList.toggle('reading',readingOn);
+  var b=$('exitReadingBtn');if(b)b.style.display=readingOn?'block':'none';
+}
+var splitViewOn=false;
+function syncSplitView(){var sp=$('splitPane');if(sp)sp.innerHTML=$('editor').innerHTML}
+function toggleSplitView(){
+  splitViewOn=!splitViewOn;
+  var sp=$('splitPane');if(!sp)return;
+  sp.style.display=splitViewOn?'block':'none';
+  document.body.classList.toggle('split-on',splitViewOn);
+  if(splitViewOn)syncSplitView();
+}
+
+/* ---------- Excel 1.4: định dạng ô / bảng tạm / biểu đồ / lọc / tách cột ---------- */
+var cellFmt={};
+function cellFmtKey(r,c){return r+','+c}
+function getCellFmt(r,c){var k=cellFmtKey(r,c);if(!cellFmt[k])cellFmt[k]={};return cellFmt[k]}
+var cellClip=null;
+function cellCut(){
+  if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}
+  cellClip={v:sheetRaw[selCell.r][selCell.c],fmt:JSON.parse(JSON.stringify(getCellFmt(selCell.r,selCell.c)))};
+  pushSheetHistory();sheetRaw[selCell.r][selCell.c]='';delete cellFmt[cellFmtKey(selCell.r,selCell.c)];renderSheet();
+}
+function cellCopy(){cellClip={v:sheetRaw[selCell.r][selCell.c],fmt:JSON.parse(JSON.stringify(getCellFmt(selCell.r,selCell.c)))};alert('Đã sao chép ô '+cellRef(selCell.r,selCell.c)+'.')}
+function cellPaste(){
+  if(!cellClip){alert('Chưa sao chép ô nào. Chọn một ô rồi bấm Sao chép trước.');return}
+  if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}
+  pushSheetHistory();sheetRaw[selCell.r][selCell.c]=cellClip.v;cellFmt[cellFmtKey(selCell.r,selCell.c)]=JSON.parse(JSON.stringify(cellClip.fmt||{}));renderSheet();
+}
+function toggleCellFmt(flag){
+  if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}
+  pushSheetHistory();var f=getCellFmt(selCell.r,selCell.c);
+  if(flag==='b')f.b=!f.b;if(flag==='i')f.i=!f.i;if(flag==='u')f.u=!f.u;
+  renderSheet();
+}
+function openCellColorSheet(kind){
+  var colors=[['#1a1a1a','Đen'],['#c00000','Đỏ'],['#0b6fa4','Xanh dương'],['#1a7a2e','Xanh lá'],['#ffeb3b','Vàng'],['#ffc9c9','Hồng nhạt'],['#cfe8ff','Xanh nhạt'],['#e6f4ea','Xanh lá nhạt'],['#ffffff','Trắng']];
+  openSheet(kind==='fore'?'Chọn màu chữ ô':'Chọn màu nền ô',colors.map(function(c){
+    return {label:'<span class="swatch" style="background:'+c[0]+'"></span>'+esc(c[1]),onClick:function(){
+      if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}
+      pushSheetHistory();var f=getCellFmt(selCell.r,selCell.c);
+      if(kind==='fore')f.color=c[0];else f.bg=c[0];
+      renderSheet();
+    }};
+  }));
+}
+function setCellAlign(a){if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}pushSheetHistory();getCellFmt(selCell.r,selCell.c).align=a;renderSheet()}
+function setCellValign(v){if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}pushSheetHistory();getCellFmt(selCell.r,selCell.c).valign=v;renderSheet()}
+function toggleCellWrap(){if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}pushSheetHistory();var f=getCellFmt(selCell.r,selCell.c);f.wrap=!f.wrap;renderSheet()}
+function setCellNumFmt(kind){if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}pushSheetHistory();var f=getCellFmt(selCell.r,selCell.c);f.num=(f.num===kind)?null:kind;renderSheet()}
+function changeCellDecimals(delta){if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}pushSheetHistory();var f=getCellFmt(selCell.r,selCell.c);var d=(f.dec==null)?(delta>0?1:0):f.dec;f.dec=Math.max(0,Math.min(6,d+delta));renderSheet()}
+function clearCellFmt(){if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}pushSheetHistory();delete cellFmt[cellFmtKey(selCell.r,selCell.c)];renderSheet()}
+function insertRowBelow(){
+  if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}
+  pushSheetHistory();sheetRaw.splice(selCell.r+1,0,Array(SHEET_COLS).fill(''));sheetRaw.length=SHEET_ROWS;renderSheet();
+}
+function insertColRight(){
+  if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}
+  pushSheetHistory();
+  sheetRaw.forEach(function(row){row.splice(selCell.c+1,0,'');row.length=SHEET_COLS;});
+  renderSheet();
+}
+function insertCellLink(){
+  if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}
+  var url=prompt('Nhập địa chỉ liên kết:');if(!url)return;
+  if(url.indexOf('://')<0)url='https://'+url;
+  pushSheetHistory();sheetRaw[selCell.r][selCell.c]=url;renderSheet();
+}
+function insertCellNote(){
+  if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}
+  var old=getCellFmt(selCell.r,selCell.c).note||'';
+  var txt=prompt('Nhập ghi chú cho ô '+cellRef(selCell.r,selCell.c)+':',old);if(txt==null)return;
+  pushSheetHistory();if(txt)getCellFmt(selCell.r,selCell.c).note=txt;else delete getCellFmt(selCell.r,selCell.c).note;
+  renderSheet();
+}
+function deleteCellNote(){if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}pushSheetHistory();delete getCellFmt(selCell.r,selCell.c).note;renderSheet()}
+function hideSheetChart(){var c=$('sheetChart');if(c){c.style.display='none';c.innerHTML=''}}
+function insertColumnChart(){
+  var vals=[];
+  for(var r=0;r<SHEET_ROWS;r++){var v=parseFloat(displayCellRaw(r,selCell.c));if(!isNaN(v))vals.push({label:'H'+(r+1),v:v})}
+  if(!vals.length){alert('Cột '+colName(selCell.c)+' chưa có số nào để vẽ biểu đồ. Nhập số vào cột này rồi bấm lại.');return}
+  var max=Math.max.apply(null,vals.map(function(x){return Math.abs(x.v)}))||1;
+  var bars=vals.map(function(x){
+    var h=Math.round(Math.abs(x.v)/max*120);
+    return '<div class="chartbar-wrap"><div class="chartbar" style="height:'+h+'px" title="'+esc(String(x.v))+'"></div><span>'+esc(x.label)+'</span><span>'+esc(String(x.v))+'</span></div>';
+  }).join('');
+  var c=$('sheetChart');
+  c.innerHTML='<h3>Biểu đồ cột — cột '+colName(selCell.c)+'</h3><div class="chartbars">'+bars+'</div><div class="row"><button onclick="hideSheetChart()">Ẩn biểu đồ</button></div>';
+  c.style.display='block';
+  c.scrollIntoView({block:'nearest'});
+}
+function displayCellRaw(r,c){return evalCell(r,c)}
+var sheetFilter=null;
+function filterSheet(){
+  var txt=prompt('Chỉ hiện hàng mà cột '+colName(selCell.c)+' chứa chữ/số:');if(txt==null)return;
+  sheetFilter={c:selCell.c,text:String(txt).toLowerCase()};
+  renderSheet();
+  alert(txt?('Đang lọc cột '+colName(selCell.c)+' theo “'+txt+'”. Bấm “Bỏ lọc” để hiện lại tất cả.'):'Đã bỏ lọc (ô tìm để trống).');
+  if(!txt)sheetFilter=null;
+}
+function clearSheetFilter(){sheetFilter=null;renderSheet()}
+function removeDuplicates(){
+  pushSheetHistory();
+  var seen={},out=[];
+  sheetRaw.forEach(function(row){
+    var key=row.join('');
+    if(key.trim()===''||!seen[key]){seen[key]=true;out.push(row)}
+  });
+  while(out.length<SHEET_ROWS)out.push(Array(SHEET_COLS).fill(''));
+  sheetRaw=out.slice(0,SHEET_ROWS);
+  renderSheet();
+  alert('Đã xóa các hàng trùng nhau hoàn toàn (giữ lại hàng đầu tiên).');
+}
+function splitCellColumn(){
+  if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}
+  var v=sheetRaw[selCell.r][selCell.c]||'';
+  var parts=String(v).split(/[,\s;]+/).filter(function(x){return x!==''});
+  if(parts.length<2){alert('Ô đang chọn không tách được — cần ít nhất 2 phần cách nhau bằng dấu phẩy, khoảng trắng hoặc chấm phẩy.');return}
+  pushSheetHistory();
+  parts.forEach(function(p,i){if(selCell.c+i<SHEET_COLS)sheetRaw[selCell.r][selCell.c+i]=p});
+  renderSheet();
+}
+var dupKeys={};
+function highlightDuplicates(){
+  if(Object.keys(dupKeys).length){dupKeys={};renderSheet();return}
+  var counts={};
+  for(var r=0;r<SHEET_ROWS;r++){var v=sheetRaw[r][selCell.c];if(v){counts[v]=(counts[v]||0)+1}}
+  for(var r2=0;r2<SHEET_ROWS;r2++){var v2=sheetRaw[r2][selCell.c];if(v2&&counts[v2]>1)dupKeys[r2+','+selCell.c]=true}
+  if(!Object.keys(dupKeys).length){alert('Cột '+colName(selCell.c)+' không có giá trị trùng nhau.');return}
+  renderSheet();
+}
+var freezeTopRow=false,showFormulasFlag=false;
+function toggleFreezeTopRow(){
+  freezeTopRow=!freezeTopRow;
+  var w=$('sheetWrap');if(w)w.classList.toggle('freeze-first',freezeTopRow);
+  alert(freezeTopRow?'Đã đóng băng hàng đầu: cuộn bảng, hàng 1 vẫn đứng yên dưới hàng tiêu đề cột.':'Đã bỏ đóng băng hàng đầu.');
+}
+function toggleShowFormulas(){showFormulasFlag=!showFormulasFlag;renderSheet()}
+function insertColumnSum(){
+  if(sheetLocked){alert('Trang tính đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}
+  var c=selCell.c;var last=-1;
+  for(var r=0;r<SHEET_ROWS;r++){if(r!==selCell.r&&sheetRaw[r][c])last=r}
+  if(last<0){alert('Cột '+colName(c)+' chưa có số nào để tính tổng.');return}
+  pushSheetHistory();
+  sheetRaw[selCell.r][selCell.c]='=SUM('+colName(c)+'1:'+colName(c)+(last+1)+')';
+  renderSheet();
+}
+
+/* ---------- PowerPoint 1.4: phông / đoạn / hình dạng / biểu đồ / chủ đề / xem lại ---------- */
+function curSlideObj(){return deckSlides[currentSlide]||emptySlide()}
+function openSlideFontSheet(){
+  openSheet('Chọn phông chữ cho slide này',FONTS.map(function(f){
+    return {label:esc(f),onClick:function(){pushDeckHistory();curSlideObj().font=f;renderSlideEditor()}};
+  }));
+}
+function toggleSlideTitleFmt(flag){
+  pushDeckHistory();var s=curSlideObj();
+  if(flag==='b')s.titleB=!s.titleB;if(flag==='i')s.titleI=!s.titleI;if(flag==='u')s.titleU=!s.titleU;
+  renderSlideEditor();
+}
+function openSlideTitleColorSheet(){
+  var colors=[['#1a1a1a','Đen'],['#c00000','Đỏ'],['#0b6fa4','Xanh dương'],['#1a7a2e','Xanh lá'],['#ffffff','Trắng']];
+  openSheet('Chọn màu chữ tiêu đề',colors.map(function(c){
+    return {label:'<span class="swatch" style="background:'+c[0]+'"></span>'+esc(c[1]),onClick:function(){pushDeckHistory();curSlideObj().titleColor=c[0];renderSlideEditor()}};
+  }));
+}
+function setSlideAlign(a){pushDeckHistory();curSlideObj().align=a;renderSlideEditor()}
+function toggleSlideBullets(){
+  pushDeckHistory();var s=curSlideObj();s.bulletsOn=s.bulletsOn===false?true:false;renderSlideEditor();
+  alert(s.bulletsOn?'Đã bật gạch đầu dòng cho slide này.':'Đã tắt gạch đầu dòng: nội dung trình chiếu hiện dạng đoạn văn.');
+}
+function insertSlideShape(type){
+  if(deckLocked){alert('Bài trình bày đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}
+  pushDeckHistory();var s=curSlideObj();if(!s.shapes)s.shapes=[];
+  s.shapes.push({type:type});renderSlideEditor();
+}
+function removeLastSlideShape(){pushDeckHistory();var s=curSlideObj();if(s.shapes)s.shapes.pop();renderSlideEditor()}
+function insertSlideChart(){
+  if(deckLocked){alert('Bài trình bày đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}
+  var txt=prompt('Nhập các số cho biểu đồ, cách nhau bằng dấu phẩy (ví dụ 5, 8, 3):');if(!txt)return;
+  var vals=txt.split(',').map(function(x){return parseFloat(x)}).filter(function(x){return !isNaN(x)});
+  if(!vals.length){alert('Chưa nhập được số nào.');return}
+  pushDeckHistory();curSlideObj().chart=vals;renderSlideEditor();
+}
+function slideShapesHtml(s,forPresent){
+  if(!s.shapes||!s.shapes.length)return '';
+  return '<div class="slide-shapes">'+s.shapes.map(function(sh){
+    if(sh.type==='rect')return '<div class="shape-rect"></div>';
+    if(sh.type==='circle')return '<div class="shape-circle"></div>';
+    return '<div class="shape-arrow">➜</div>';
+  }).join('')+'</div>';
+}
+function slideChartHtml(s){
+  if(!s.chart||!s.chart.length)return '';
+  var max=Math.max.apply(null,s.chart.map(function(v){return Math.abs(v)}))||1;
+  return '<div class="slide-chart">'+s.chart.map(function(v,i){
+    return '<div class="chartbar-wrap"><div class="chartbar" style="height:'+Math.round(Math.abs(v)/max*100)+'px"></div><span>'+esc(String(v))+'</span></div>';
+  }).join('')+'</div>';
+}
+function applySlideTheme(name){
+  var themes={sang:['#ffffff','#2b579a'],kem:['#fdf6e3','#5b4636'],la:['#e6f4ea','#14532d'],toi:['#222222','#ffffff']};
+  var t=themes[name]||themes.sang;
+  pushDeckHistory();var s=curSlideObj();s.bg=t[0];s.titleColor=t[1];renderSlideEditor();
+}
+var pptSpellOn=true;
+function toggleSlideSpellcheck(){
+  pptSpellOn=!pptSpellOn;renderSlideEditor();
+  alert(pptSpellOn?'Đã bật kiểm tra chính tả của trình duyệt cho ô nội dung slide.':'Đã tắt kiểm tra chính tả cho ô nội dung slide.');
+}
+function toggleSlideHidden(){
+  pushDeckHistory();var s=curSlideObj();s.hidden=!s.hidden;renderSlideEditor();
+  alert(s.hidden?'Đã ẩn slide này: khi trình chiếu sẽ bỏ qua slide này (vẫn còn trong bài, bấm lại để hiện).':'Đã hiện lại slide này.');
+}
+var autoAdvanceOn=false,presentTimer=null;
+function startAutoAdvance(){
+  if(presentTimer)clearInterval(presentTimer);
+  presentTimer=null;
+  if(!autoAdvanceOn)return;
+  presentTimer=setInterval(function(){
+    if(presentIndex<presentSlides.length-1)presentNext();
+    else{clearInterval(presentTimer);presentTimer=null;}
+  },5000);
+}
+function toggleAutoAdvance(){
+  autoAdvanceOn=!autoAdvanceOn;
+  if($('presentOverlay').style.display!=='none')startAutoAdvance();
+  alert(autoAdvanceOn?'Đã bật tự chuyển slide mỗi 5 giây (áp dụng khi đang trình chiếu).':'Đã tắt tự chuyển slide.');
+}
+function visibleSlides(){
+  var out=[];
+  deckSlides.forEach(function(s,i){if(!s.hidden)out.push({slide:s,orig:i})});
+  return out;
+}
+function insertSlideComment(){
+  var s=curSlideObj();
+  var txt=prompt('Nhập nhận xét cho slide này (để trống để xóa nhận xét cũ):',s.comment||'');if(txt==null)return;
+  pushDeckHistory();s.comment=txt;renderSlideEditor();
+}
 
 /* ---------- Khởi động ---------- */
 (function init(){
