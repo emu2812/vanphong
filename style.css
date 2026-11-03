@@ -56,7 +56,13 @@ textarea{min-height:110px}
 #ribbonTabs button.filetab{background:var(--app);color:#fff;font-weight:700}
 
 /* ---------- Ribbon lệnh theo nhóm ---------- */
-#ribbon{background:#fff;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;scroll-snap-type:x proximity}
+/* Bản 1.5: KHÔNG giấu nhóm trong im lặng nữa.
+   - Từ 700px trở lên: ribbon là hàng flex, panel co vừa khung; nhóm nào
+     tràn sẽ bị JS ẩn khỏi hàng và gom vào menu tràn "⋯" (kèm tên nhóm),
+     không dùng overflow-x:auto giấu thanh cuộn ở desktop.
+   - Dưới 700px: giữ vuốt ngang, nhưng có viền mờ 2 mép (mask) + hàng chip
+     tên nhóm #groupChips ngay dưới ribbon (JS điền đủ mọi nhóm). */
+#ribbon{position:relative;background:#fff;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;scroll-snap-type:x proximity}
 #ribbon::-webkit-scrollbar{display:none}
 .rpanel{display:none;gap:0;padding:6px 8px;min-width:max-content}
 .rpanel.active{display:flex}
@@ -72,8 +78,49 @@ textarea{min-height:110px}
 .rbtn .rlabel{font-size:12px;line-height:1.2;text-align:center;white-space:normal}
 .rbtn.primary{background:var(--app);color:#fff}
 
+/* Bản 1.5: nút menu tràn "⋯" — chỉ JS hiện khi có nhóm bị tràn (desktop).
+   Menu tràn nằm dưới ribbon, đè lên vùng làm việc, kèm tên từng nhóm. */
+#ribbonOverflowBtn{display:none;flex:0 0 auto;min-width:48px;min-height:48px;margin:6px 8px 6px 0;border:1px solid var(--line);background:#fff;font-size:22px;line-height:1;align-self:flex-start}
+#ribbonOverflowBtn:hover{background:#eef3fa}
+#ribbonOverflow{display:none;position:absolute;top:100%;right:8px;z-index:80;background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,.25);max-width:min(92vw,640px);max-height:70vh;overflow:auto;padding:10px}
+#ribbon.overflow-open #ribbonOverflow{display:block}
+#ribbonOverflow .ogroup{border-bottom:1px solid var(--line);padding:8px 0}
+#ribbonOverflow .ogroup:last-child{border-bottom:none}
+#ribbonOverflow .oglabel{text-align:center;font-size:12px;color:var(--muted);padding:2px 0 6px}
+#ribbonOverflow .obtns{display:flex;flex-wrap:wrap;gap:4px}
+#ribbonOverflow .obtn{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:58px;padding:6px 8px;border:none;background:#fff}
+#ribbonOverflow .obtn:hover{background:#eef3fa}
+#ribbonOverflow .obtn svg{width:24px;height:24px}
+#ribbonOverflow .obtn .rlabel{font-size:12px;line-height:1.2;text-align:center}
+/* Hàng chip tên nhóm — chỉ hiện dưới 700px (JS điền đủ mọi nhóm của tab). */
+#groupChips{display:none}
+@media(min-width:700px){
+  #ribbon{display:flex;align-items:stretch;overflow:visible}
+  .rpanel{flex:1 1 auto;min-width:0}
+}
+@media(min-width:1024px){
+  /* Thu nút vừa khung desktop trước khi tính tràn: vẫn giữ tối thiểu 48px
+     chiều cao để bấm bằng ngón tay, chỉ thu chiều ngang + cỡ nhãn. */
+  .rbtn{min-width:52px;padding:4px 6px}
+  .rbtn .rlabel{font-size:11px}
+  .rgroup{padding:2px 8px}
+  .rbtn.wide{min-width:100px}
+}
+@media(max-width:699px){
+  /* Viền mờ 2 mép báo còn nhóm ở 2 phía khi vuốt ngang. */
+  #ribbon{-webkit-mask-image:linear-gradient(to right,transparent,#000 28px,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(to right,transparent,#000 28px,#000 calc(100% - 28px),transparent)}
+  #groupChips{display:flex;gap:6px;overflow-x:auto;padding:6px 8px;background:#f7f7f7;border-bottom:1px solid var(--line);scrollbar-width:none;-ms-overflow-style:none}
+  #groupChips::-webkit-scrollbar{display:none}
+  #groupChips .gchip{flex-shrink:0;min-height:48px;padding:6px 12px;border-radius:20px;font-size:13px;white-space:nowrap;background:#fff}
+  #groupChips .gchip.active{background:var(--app);color:#fff;border-color:var(--app);font-weight:700}
+}
 /* ---------- Vùng làm việc: nền xám + trang trắng có bóng đổ ---------- */
-main{margin:0}
+/* Bản 1.5: body là cột flex cao ĐÚNG bằng khung nhìn, mọi cuộn dọc nằm
+   trong main — nhờ đó tab Excel (cột flex con của main) không bao giờ
+   bị lưới kéo giãn ra ngoài khung nhìn và đẩy thẻ sheet xuống dưới. */
+body{display:flex;flex-direction:column;height:100dvh;overflow:hidden}
+#titlebar,#ribbonTabs,#ribbon,#groupChips,#statusbar{flex-shrink:0}
+main{margin:0;flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow-y:auto}
 section.tab{display:none}
 section.tab.active{display:block}
 section.tab:not(#tab-editor):not(#tab-sheet):not(#tab-slides){padding:16px;max-width:980px;margin:0 auto}
@@ -91,7 +138,7 @@ section.tab>.small{padding:0 16px}
 #wordPage.size-a5{max-width:560px}
 #wordPage.landscape{max-width:1123px;min-height:794px}
 #editor{min-height:900px;padding:96px;outline:none;caret-color:var(--app);font-family:"Carlito",-apple-system,"Segoe UI",sans-serif;font-size:11pt;line-height:1.5}
-#editor:empty:before{content:"Bắt đầu soạn thảo tại đây…";color:#999}
+#editor:empty:before{content:"Bắt đầu soạn thảo tại đây…";color:#999;display:block;text-align:left;margin:0;padding:0}
 #editor table{border-collapse:collapse;margin:8px 0}
 #editor td,#editor th{border:1px solid #999;padding:6px 10px}
 #editor img{max-width:100%;height:auto}
@@ -116,6 +163,14 @@ table.sheet td.cell.selected{background:#dcefe3;outline:2px solid var(--app)}
 table.sheet td.cell div.cellval{padding:12px 8px;min-height:48px;font-size:16px;white-space:nowrap;overflow:hidden}
 table.sheet td.cell input{height:48px;border:none;width:100%;padding:12px 8px;font-size:16px;min-height:48px}
 table.sheet input.formula{color:var(--app)}
+/* Bản 1.5: Excel là cột flex trong khung nhìn — tiêu đề → tab → ribbon →
+   thanh công thức → lưới (flex:1, tự cuộn bên trong) → thẻ sheet →
+   thanh trạng thái. Lưới không bao giờ đẩy thẻ sheet ra khỏi màn hình. */
+#tab-sheet.active{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+#tab-sheet #formulabar{flex:0 0 auto}
+#tab-sheet #sheetWork{flex:1 1 auto;min-height:0;overflow:hidden;padding:12px}
+#tab-sheet #sheetWrap{max-height:none;height:100%}
+#tab-sheet #sheettabs{flex:0 0 auto}
 #sheettabs{display:flex;flex-wrap:nowrap;gap:8px;align-items:center;background:#fff;border-top:1px solid var(--line);padding:8px 16px;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;scroll-snap-type:x proximity}
 #sheettabs::-webkit-scrollbar{display:none}
 #sheettabs .small{white-space:nowrap;flex-shrink:0}

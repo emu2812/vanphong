@@ -1291,8 +1291,7 @@ function renderSlideEditor(){
     +slideShapesHtml(s)+shapeRow
     +slideChartHtml(s)
     +commentHtml
-    +'</div><p class="small">Slide '+(currentSlide+1)+' / '+deckSlides.length+' • Hiệu ứng chuyển: '+transLabel+(s.hidden?' • Slide này đang Ẩn (trình chiếu sẽ bỏ qua)':'')+(deckLocked?' • Đang bảo vệ (khóa sửa)':'')+'</p>'
-    +'<div class="row"><button onclick="selectSlide('+(currentSlide-1)+')">Slide trước</button><button onclick="selectSlide('+(currentSlide+1)+')">Slide sau</button><button onclick="addSlide()">Thêm slide</button><button onclick="presentFromCurrent()">Trình chiếu từ slide này</button></div></div>';
+    +'</div></div>';
 }
 function updateSlideTitle(i,v){if(deckLocked){alert('Bài trình bày đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}if(deckSlides[i])deckSlides[i].title=v;updateStatusBar()}
 function updateSlideBullets(i,v){if(deckLocked){alert('Bài trình bày đang được bảo vệ. Mở khóa ở tab Xem lại trước.');return}if(deckSlides[i])deckSlides[i].bullets=String(v).split('\n')}
@@ -1565,7 +1564,7 @@ function switchApp(app){
   var sec=$('tab-'+APP_SECTIONS[app]);if(sec)sec.classList.add('active');
   var rt=$('ribbonTabs'),rb=$('ribbon');
   if(app==='word'||app==='excel'||app==='ppt'){
-    if(rt)rt.style.display='flex';if(rb)rb.style.display='block';
+    if(rt)rt.style.display='flex';if(rb)rb.style.display='';
     renderRibbonTabs();switchRibbon('home');
   }else{
     if(rt)rt.style.display='none';if(rb)rb.style.display='none';
@@ -1592,6 +1591,114 @@ function switchRibbon(tab){
     var p=$('rp-'+currentApp+'-'+k);if(p)p.style.display=(k===tab?'flex':'none');
   });
   renderRibbonTabs();
+  layoutRibbon();
+}
+/* ---------- Bản 1.5: ribbon không giấu nhóm trong im lặng ----------
+   Desktop (từ 700px trở lên, gồm cả 1024px+): đo chiều rộng thật của các
+   nhóm; nhóm nào tràn thì ẩn khỏi hàng và gom vào menu tràn "⋯" kèm tên
+   nhóm, bấm nút trong menu sẽ bấm đúng nút gốc. Điện thoại (<700px): giữ
+   vuốt ngang + hàng chip tên nhóm đủ mọi nhóm, bấm chip cuộn tới nhóm. */
+function activeRibbonPanel(){
+  var ps=document.querySelectorAll('.rpanel');
+  for(var i=0;i<ps.length;i++){if(ps[i].style.display==='flex')return ps[i]}
+  return null;
+}
+function closeRibbonOverflow(){
+  var rb=$('ribbon');if(rb)rb.classList.remove('overflow-open');
+  var ov=$('ribbonOverflow');if(ov)ov.style.display='none';
+}
+function toggleRibbonOverflow(){
+  var rb=$('ribbon');if(!rb)return;
+  if(rb.classList.contains('overflow-open')){closeRibbonOverflow();return}
+  rb.classList.add('overflow-open');
+  var ov=$('ribbonOverflow');if(ov)ov.style.display='block';
+}
+document.addEventListener('click',function(e){
+  if(!e.target||!e.target.closest||!e.target.closest('#ribbon'))closeRibbonOverflow();
+});
+function highlightActiveChip(panel){
+  var chips=$('groupChips');if(!chips)return;
+  var groups=panel.querySelectorAll('.rgroup');
+  var cur=0;
+  for(var i=0;i<groups.length;i++){
+    if(groups[i].offsetLeft-panel.scrollLeft<=48)cur=i;
+  }
+  chips.querySelectorAll('.gchip').forEach(function(ch,idx){ch.classList.toggle('active',idx===cur)});
+}
+function renderGroupChips(panel){
+  var chips=$('groupChips');if(!chips)return;
+  if(window.innerWidth>=700){chips.innerHTML='';return}
+  var groups=panel.querySelectorAll('.rgroup');
+  chips.innerHTML=Array.prototype.map.call(groups,function(g,i){
+    var lb=g.querySelector('.glabel');
+    return '<button type="button" class="gchip" data-gi="'+i+'">'+esc(lb?lb.textContent:'')+'</button>';
+  }).join('');
+  chips.querySelectorAll('.gchip').forEach(function(ch){
+    ch.addEventListener('click',function(){
+      var g=groups[+ch.dataset.gi];if(!g)return;
+      try{g.scrollIntoView({inline:'start',block:'nearest'})}catch(e){panel.scrollLeft=g.offsetLeft}
+      highlightActiveChip(panel);
+    });
+  });
+  panel.onscroll=function(){highlightActiveChip(panel)};
+  highlightActiveChip(panel);
+}
+var ribbonOverflowTargets=[];
+function layoutRibbon(){
+  var rb=$('ribbon');if(!rb)return;
+  var panel=activeRibbonPanel();if(!panel)return;
+  closeRibbonOverflow();
+  var groups=panel.querySelectorAll('.rgroup');
+  groups.forEach(function(g){g.style.display=''});
+  var ovBtn=$('ribbonOverflowBtn'),ov=$('ribbonOverflow');
+  if(window.innerWidth<700){
+    if(ovBtn)ovBtn.style.display='none';
+    if(ov)ov.innerHTML='';
+    renderGroupChips(panel);
+    return;
+  }
+  var chips=$('groupChips');if(chips)chips.innerHTML='';
+  if(ov)ov.innerHTML='';
+  if(ovBtn)ovBtn.style.display='none';
+  var panelStyle=getComputedStyle(panel);
+  var pad=(parseFloat(panelStyle.paddingLeft)||0)+(parseFloat(panelStyle.paddingRight)||0);
+  var total=pad;
+  groups.forEach(function(g){total+=g.offsetWidth});
+  if(total<=rb.clientWidth)return;
+  if(ovBtn)ovBtn.style.display='block';
+  var btnW=ovBtn?(ovBtn.offsetWidth+8):56;
+  var avail=rb.clientWidth-btnW;
+  var used=pad,kept=0;
+  for(var i=0;i<groups.length;i++){
+    if(used+groups[i].offsetWidth<=avail){used+=groups[i].offsetWidth;kept++}
+    else break;
+  }
+  if(kept===0)kept=1;
+  var hidden=[];
+  for(var j=kept;j<groups.length;j++){groups[j].style.display='none';hidden.push(groups[j])}
+  if(!hidden.length){if(ovBtn)ovBtn.style.display='none';return}
+  ribbonOverflowTargets=[];
+  var html='';
+  hidden.forEach(function(g){
+    var lb=g.querySelector('.glabel');
+    html+='<div class="ogroup"><div class="oglabel">'+esc(lb?lb.textContent:'')+'</div><div class="obtns">';
+    g.querySelectorAll('.rbtn').forEach(function(b){
+      var lab=b.querySelector('.rlabel');var ic=b.querySelector('.ricon');
+      var idx=ribbonOverflowTargets.length;ribbonOverflowTargets.push(b);
+      html+='<button type="button" class="obtn" data-oi="'+idx+'">'
+        +'<span class="ricon">'+(ic?ic.innerHTML:'')+'</span>'
+        +'<span class="rlabel">'+esc(lab?lab.textContent:(ic?ic.textContent:''))+'</span></button>';
+    });
+    html+='</div></div>';
+  });
+  ov.innerHTML=html;
+  ov.querySelectorAll('.obtn').forEach(function(ob){
+    ob.addEventListener('click',function(){
+      var t=ribbonOverflowTargets[+ob.dataset.oi];
+      closeRibbonOverflow();
+      if(t)t.click();
+    });
+  });
 }
 function currentFileName(){
   if(currentApp==='word')return $('docName').value.trim()||'Tài liệu chưa đặt tên';
@@ -2458,7 +2565,8 @@ function insertSlideComment(){
   googleToken=sessionStorage.getItem('vb_google_token')||null;
   renderDocList();renderSheetList();renderDeckList();renderSlideEditor();renderFileList();renderSheet();renderPhotos();updateAuthBar();
   try{renderRibbonTabs();switchApp('word');renderRuler();syncRuler();updateStatusBar();}catch(e){}
-  if(window.addEventListener)window.addEventListener('resize',function(){syncRuler();});
+  if(window.addEventListener)window.addEventListener('resize',function(){syncRuler();layoutRibbon();});
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(function(){layoutRibbon()});
   var ed=$('editor');if(ed&&ed.addEventListener)ed.addEventListener('input',function(){updateStatusBar();});
   document.addEventListener('keydown',function(e){
     if(!(e.ctrlKey||e.metaKey))return;

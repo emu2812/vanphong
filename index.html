@@ -40,36 +40,36 @@
   <!-- ===== WORD ===== -->
   <div class="rpanel" id="rp-word-home" data-app="word" data-tab="home">
     <div class="rgroup"><div class="rbtns">
-      <button class="rbtn" onclick="docCut()"><span class="ricon">✂</span><span class="rlabel">Cắt</span></button>
-      <button class="rbtn" onclick="docCopy()"><span class="ricon">⧉</span><span class="rlabel">Sao chép</span></button>
-      <button class="rbtn" onclick="docPaste()"><span class="ricon">▤</span><span class="rlabel">Dán</span></button>
+      <button class="rbtn" onclick="docCut()"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="18" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.2 7.2L20 19M8.2 16.8L20 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Cắt</span></button>
+      <button class="rbtn" onclick="docCopy()"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 15V5a1 1 0 0 1 1-1h9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Sao chép</span></button>
+      <button class="rbtn" onclick="docPaste()"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="16" rx="1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 5V3h6v2M9 11h6M9 15h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Dán</span></button>
       <button class="rbtn" onclick="copyDocFormat()"><span class="ricon">🖌</span><span class="rlabel">Sao chép định dạng</span></button>
     </div><div class="glabel">Bảng tạm</div></div>
     <div class="rgroup"><div class="rbtns">
       <button class="rbtn wide" onclick="openFontSheet()"><span class="ricon" id="fontLabel">Carlito</span></button>
       <button class="rbtn" onclick="openSizeSheet()"><span class="ricon">11</span><span class="rlabel">Cỡ chữ</span></button>
-      <button class="rbtn" onclick="cmd('bold')" title="Đậm (Ctrl+B)"><span class="ricon"><b>B</b></span><span class="rlabel">Đậm</span></button>
-      <button class="rbtn" onclick="cmd('italic')" title="Nghiêng (Ctrl+I)"><span class="ricon"><i>I</i></span><span class="rlabel">Nghiêng</span></button>
-      <button class="rbtn" onclick="cmd('underline')" title="Gạch chân (Ctrl+U)"><span class="ricon"><u>U</u></span><span class="rlabel">Gạch chân</span></button>
+      <button class="rbtn" onclick="cmd('bold')" title="Đậm (Ctrl+B)"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h6a3 3 0 0 1 0 6H7M7 10h7a3.5 3.5 0 0 1 0 7H7M7 4v16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Đậm</span></button>
+      <button class="rbtn" onclick="cmd('italic')" title="Nghiêng (Ctrl+I)"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 4L10 20M10 4h5M8 20h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Nghiêng</span></button>
+      <button class="rbtn" onclick="cmd('underline')" title="Gạch chân (Ctrl+U)"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4v8a6 6 0 0 0 12 0V4M4 20h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Gạch chân</span></button>
       <button class="rbtn" onclick="cmd('strikeThrough')" title="Gạch ngang"><span class="ricon"><s>S</s></span><span class="rlabel">Gạch ngang</span></button>
       <button class="rbtn" onclick="cmd('subscript')"><span class="ricon">X<sub>2</sub></span><span class="rlabel">Chỉ số dưới</span></button>
       <button class="rbtn" onclick="cmd('superscript')"><span class="ricon">X<sup>2</sup></span><span class="rlabel">Chỉ số trên</span></button>
       <button class="rbtn" onclick="cmd('removeFormat')"><span class="ricon">A✕</span><span class="rlabel">Xóa định dạng</span></button>
       <button class="rbtn" onclick="changeFontSize(2)"><span class="ricon">A▲</span><span class="rlabel">Tăng cỡ chữ</span></button>
       <button class="rbtn" onclick="changeFontSize(-2)"><span class="ricon">A▼</span><span class="rlabel">Giảm cỡ chữ</span></button>
-      <button class="rbtn" onclick="openColorSheet('fore')"><span class="ricon" style="color:#c00000">A</span><span class="rlabel">Màu chữ</span></button>
-      <button class="rbtn" onclick="openColorSheet('hilite')"><span class="ricon" style="background:#ffeb3b">A</span><span class="rlabel">Tô sáng</span></button>
+      <button class="rbtn" onclick="openColorSheet('fore')"><span class="ricon" style="color:#c00000"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l6 8a6 6 0 1 1-12 0z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="13.5" r="1.6" fill="currentColor"/></svg></span><span class="rlabel">Màu chữ</span></button>
+      <button class="rbtn" onclick="openColorSheet('hilite')"><span class="ricon" style="background:#ffeb3b"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21l2.5-5.5L16 5l3 3L8.5 18.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 7l3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Tô sáng</span></button>
     </div><div class="glabel">Phông chữ</div></div>
     <div class="rgroup"><div class="rbtns">
-      <button class="rbtn" onclick="cmd('insertUnorderedList')"><span class="ricon">• ≡</span><span class="rlabel">Gạch đầu dòng</span></button>
+      <button class="rbtn" onclick="cmd('insertUnorderedList')"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="6" r="1.6" fill="currentColor"/><circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="5" cy="18" r="1.6" fill="currentColor"/><path d="M9 6h11M9 12h11M9 18h11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Gạch đầu dòng</span></button>
       <button class="rbtn" onclick="openHeadingSheet()"><span class="ricon">¶</span><span class="rlabel">Tiêu đề</span></button>
-      <button class="rbtn" onclick="cmd('justifyLeft')"><span class="ricon">≡</span><span class="rlabel">Trái</span></button>
-      <button class="rbtn" onclick="cmd('justifyCenter')"><span class="ricon">≡</span><span class="rlabel">Giữa</span></button>
-      <button class="rbtn" onclick="cmd('justifyRight')"><span class="ricon">≡</span><span class="rlabel">Phải</span></button>
-      <button class="rbtn" onclick="cmd('justifyFull')"><span class="ricon">≡</span><span class="rlabel">Đều</span></button>
+      <button class="rbtn" onclick="cmd('justifyLeft')"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 11h10M4 16h16M4 21h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Trái</span></button>
+      <button class="rbtn" onclick="cmd('justifyCenter')"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 11h10M4 16h16M7 21h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Giữa</span></button>
+      <button class="rbtn" onclick="cmd('justifyRight')"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M10 11h10M4 16h16M10 21h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Phải</span></button>
+      <button class="rbtn" onclick="cmd('justifyFull')"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 11h16M4 16h16M4 21h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Đều</span></button>
       <button class="rbtn" onclick="openLineSheet()"><span class="ricon">↕</span><span class="rlabel">Cách dòng</span></button>
-      <button class="rbtn" onclick="cmd('indent')"><span class="ricon">→≡</span><span class="rlabel">Tăng thụt lề</span></button>
-      <button class="rbtn" onclick="cmd('outdent')"><span class="ricon">≡←</span><span class="rlabel">Giảm thụt lề</span></button>
+      <button class="rbtn" onclick="cmd('indent')"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 11h16M4 16h16M4 21h16M17 3l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Tăng thụt lề</span></button>
+      <button class="rbtn" onclick="cmd('outdent')"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 11h16M4 16h16M4 21h16M7 3L3 7l4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Giảm thụt lề</span></button>
       <button class="rbtn" onclick="openParaBgSheet()"><span class="ricon" style="background:#ffeb3b">&nbsp;</span><span class="rlabel">Tô nền đoạn</span></button>
       <button class="rbtn" onclick="toggleParaBorder()"><span class="ricon">▭</span><span class="rlabel">Viền đoạn</span></button>
     </div><div class="glabel">Đoạn</div></div>
@@ -170,21 +170,21 @@
   <!-- ===== EXCEL ===== -->
   <div class="rpanel" id="rp-excel-home" data-app="excel" data-tab="home">
     <div class="rgroup"><div class="rbtns">
-      <button class="rbtn" onclick="cellCut()"><span class="ricon">✂</span><span class="rlabel">Cắt</span></button>
-      <button class="rbtn" onclick="cellCopy()"><span class="ricon">⧉</span><span class="rlabel">Sao chép</span></button>
-      <button class="rbtn" onclick="cellPaste()"><span class="ricon">▤</span><span class="rlabel">Dán</span></button>
+      <button class="rbtn" onclick="cellCut()"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="18" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.2 7.2L20 19M8.2 16.8L20 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Cắt</span></button>
+      <button class="rbtn" onclick="cellCopy()"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 15V5a1 1 0 0 1 1-1h9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Sao chép</span></button>
+      <button class="rbtn" onclick="cellPaste()"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="16" rx="1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 5V3h6v2M9 11h6M9 15h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Dán</span></button>
     </div><div class="glabel">Bảng tạm</div></div>
     <div class="rgroup"><div class="rbtns">
-      <button class="rbtn" onclick="toggleCellFmt('b')"><span class="ricon"><b>B</b></span><span class="rlabel">Đậm</span></button>
-      <button class="rbtn" onclick="toggleCellFmt('i')"><span class="ricon"><i>I</i></span><span class="rlabel">Nghiêng</span></button>
-      <button class="rbtn" onclick="toggleCellFmt('u')"><span class="ricon"><u>U</u></span><span class="rlabel">Gạch chân</span></button>
-      <button class="rbtn" onclick="openCellColorSheet('fore')"><span class="ricon" style="color:#c00000">A</span><span class="rlabel">Màu chữ</span></button>
-      <button class="rbtn" onclick="openCellColorSheet('bg')"><span class="ricon" style="background:#ffeb3b">A</span><span class="rlabel">Tô nền ô</span></button>
+      <button class="rbtn" onclick="toggleCellFmt('b')"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h6a3 3 0 0 1 0 6H7M7 10h7a3.5 3.5 0 0 1 0 7H7M7 4v16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Đậm</span></button>
+      <button class="rbtn" onclick="toggleCellFmt('i')"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 4L10 20M10 4h5M8 20h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Nghiêng</span></button>
+      <button class="rbtn" onclick="toggleCellFmt('u')"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4v8a6 6 0 0 0 12 0V4M4 20h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Gạch chân</span></button>
+      <button class="rbtn" onclick="openCellColorSheet('fore')"><span class="ricon" style="color:#c00000"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l6 8a6 6 0 1 1-12 0z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="13.5" r="1.6" fill="currentColor"/></svg></span><span class="rlabel">Màu chữ</span></button>
+      <button class="rbtn" onclick="openCellColorSheet('bg')"><span class="ricon" style="background:#ffeb3b"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21l2.5-5.5L16 5l3 3L8.5 18.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 7l3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Tô nền ô</span></button>
     </div><div class="glabel">Phông chữ</div></div>
     <div class="rgroup"><div class="rbtns">
-      <button class="rbtn" onclick="setCellAlign('left')"><span class="ricon">≡</span><span class="rlabel">Trái</span></button>
-      <button class="rbtn" onclick="setCellAlign('center')"><span class="ricon">≡</span><span class="rlabel">Giữa</span></button>
-      <button class="rbtn" onclick="setCellAlign('right')"><span class="ricon">≡</span><span class="rlabel">Phải</span></button>
+      <button class="rbtn" onclick="setCellAlign('left')"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 11h10M4 16h16M4 21h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Trái</span></button>
+      <button class="rbtn" onclick="setCellAlign('center')"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 11h10M4 16h16M7 21h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Giữa</span></button>
+      <button class="rbtn" onclick="setCellAlign('right')"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M10 11h10M4 16h16M10 21h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Phải</span></button>
       <button class="rbtn" onclick="setCellValign('top')"><span class="ricon">↑</span><span class="rlabel">Dọc trên</span></button>
       <button class="rbtn" onclick="setCellValign('middle')"><span class="ricon">↕</span><span class="rlabel">Dọc giữa</span></button>
       <button class="rbtn" onclick="setCellValign('bottom')"><span class="ricon">↓</span><span class="rlabel">Dọc dưới</span></button>
@@ -291,16 +291,16 @@
     </div><div class="glabel">Slide</div></div>
     <div class="rgroup"><div class="rbtns">
       <button class="rbtn" onclick="openSlideFontSheet()"><span class="ricon">Aa</span><span class="rlabel">Phông chữ</span></button>
-      <button class="rbtn" onclick="toggleSlideTitleFmt('b')"><span class="ricon"><b>B</b></span><span class="rlabel">Đậm</span></button>
-      <button class="rbtn" onclick="toggleSlideTitleFmt('i')"><span class="ricon"><i>I</i></span><span class="rlabel">Nghiêng</span></button>
-      <button class="rbtn" onclick="toggleSlideTitleFmt('u')"><span class="ricon"><u>U</u></span><span class="rlabel">Gạch chân</span></button>
-      <button class="rbtn" onclick="openSlideTitleColorSheet()"><span class="ricon" style="color:#c00000">A</span><span class="rlabel">Màu chữ</span></button>
+      <button class="rbtn" onclick="toggleSlideTitleFmt('b')"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h6a3 3 0 0 1 0 6H7M7 10h7a3.5 3.5 0 0 1 0 7H7M7 4v16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Đậm</span></button>
+      <button class="rbtn" onclick="toggleSlideTitleFmt('i')"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 4L10 20M10 4h5M8 20h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Nghiêng</span></button>
+      <button class="rbtn" onclick="toggleSlideTitleFmt('u')"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4v8a6 6 0 0 0 12 0V4M4 20h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Gạch chân</span></button>
+      <button class="rbtn" onclick="openSlideTitleColorSheet()"><span class="ricon" style="color:#c00000"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l6 8a6 6 0 1 1-12 0z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="13.5" r="1.6" fill="currentColor"/></svg></span><span class="rlabel">Màu chữ</span></button>
     </div><div class="glabel">Phông chữ</div></div>
     <div class="rgroup"><div class="rbtns">
-      <button class="rbtn" onclick="setSlideAlign('left')"><span class="ricon">≡</span><span class="rlabel">Trái</span></button>
-      <button class="rbtn" onclick="setSlideAlign('center')"><span class="ricon">≡</span><span class="rlabel">Giữa</span></button>
-      <button class="rbtn" onclick="setSlideAlign('right')"><span class="ricon">≡</span><span class="rlabel">Phải</span></button>
-      <button class="rbtn" onclick="toggleSlideBullets()"><span class="ricon">• ≡</span><span class="rlabel">Gạch đầu dòng</span></button>
+      <button class="rbtn" onclick="setSlideAlign('left')"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 11h10M4 16h16M4 21h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Trái</span></button>
+      <button class="rbtn" onclick="setSlideAlign('center')"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 11h10M4 16h16M7 21h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Giữa</span></button>
+      <button class="rbtn" onclick="setSlideAlign('right')"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M10 11h10M4 16h16M10 21h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Phải</span></button>
+      <button class="rbtn" onclick="toggleSlideBullets()"><span class="ricon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="6" r="1.6" fill="currentColor"/><circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="5" cy="18" r="1.6" fill="currentColor"/><path d="M9 6h11M9 12h11M9 18h11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rlabel">Gạch đầu dòng</span></button>
     </div><div class="glabel">Đoạn</div></div>
   </div>
   <div class="rpanel" id="rp-ppt-insert" data-app="ppt" data-tab="insert">
@@ -365,8 +365,12 @@
       <button class="rbtn" onclick="setZoom(150)"><span class="ricon">150%</span><span class="rlabel">Thu phóng 150%</span></button>
     </div><div class="glabel">Xem</div></div>
   </div>
+<button id="ribbonOverflowBtn" type="button" onclick="toggleRibbonOverflow()" title="Các nhóm còn lại" aria-label="Các nhóm còn lại">⋯</button>
+<div id="ribbonOverflow" aria-label="Các nhóm ribbon còn lại"></div>
 </div>
-
+<!-- Bản 1.5: hàng chip tên nhóm cho điện thoại (JS điền đủ mọi nhóm của tab
+     đang chọn; bấm chip cuộn tới nhóm đó, chip nhóm đang xem được tô sáng). -->
+<div id="groupChips" aria-label="Các nhóm lệnh của tab đang chọn"></div>
 <main>
 <!-- ============ WORD ============ -->
 <section id="tab-editor" class="tab active">
