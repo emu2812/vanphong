@@ -148,7 +148,7 @@
   </div>
   <div class="rpanel" id="rp-word-review" data-app="word" data-tab="review">
     <div class="rgroup"><div class="rbtns">
-      <button class="rbtn" onclick="toggleSpellcheck()"><span class="ricon">ABC ✓</span><span class="rlabel">Chính tả</span></button>
+      <button class="rbtn" onclick="toggleSpellcheck()" title="Gạch chân cơ học của trình duyệt — chưa có từ điển tiếng Việt, không phải kiểm tra chính tả thật"><span class="ricon">ABC ✓</span><span class="rlabel">Chính tả</span></button>
       <button class="rbtn" onclick="insertCommentPara()"><span class="ricon">✎</span><span class="rlabel">Nhận xét</span></button>
       <button class="rbtn" onclick="translateSelection()"><span class="ricon">A→B</span><span class="rlabel">Dịch đoạn chọn</span></button>
     </div><div class="glabel">Xem lại</div></div>
@@ -351,7 +351,7 @@
   </div>
   <div class="rpanel" id="rp-ppt-review" data-app="ppt" data-tab="review">
     <div class="rgroup"><div class="rbtns">
-      <button class="rbtn" onclick="toggleSlideSpellcheck()"><span class="ricon">ABC ✓</span><span class="rlabel">Chính tả</span></button>
+      <button class="rbtn" onclick="toggleSlideSpellcheck()" title="Gạch chân cơ học của trình duyệt — chưa có từ điển tiếng Việt, không phải kiểm tra chính tả thật"><span class="ricon">ABC ✓</span><span class="rlabel">Chính tả</span></button>
       <button class="rbtn" onclick="insertSlideComment()"><span class="ricon">✎</span><span class="rlabel">Nhận xét</span></button>
       <button class="rbtn" onclick="toggleDeckLock()"><span class="ricon">Khóa</span><span class="rlabel">Bảo vệ bài</span></button>
       <button class="rbtn" onclick="gotoTab('translate')"><span class="ricon">A→B</span><span class="rlabel">Dịch</span></button>
@@ -500,7 +500,7 @@
   <h2>5. Quản lý file</h2>
   <p>Danh sách tài liệu của web (lưu ở máy). Trạng thái từng file hiện ngay tại đây: <b>Đã lưu máy</b> / <b>Chờ đồng bộ</b> / <b>Đã lên Drive</b> / <b>Đã lên OneDrive</b>. Trạng thái Drive/OneDrive chỉ chuyển thành “đã lên” khi đồng bộ qua API thật sự thành công.</p>
   <div class="row">
-    <label>Nhập file từ máy (txt, docx, csv, pdf): <input type="file" id="importFile" accept=".txt,.docx,.csv,.pdf,text/plain"></label>
+    <label>Nhập file từ máy (txt, docx, xlsx, pptx, csv, pdf): <input type="file" id="importFile" accept=".txt,.docx,.xlsx,.pptx,.csv,.pdf,text/plain"></label>
   </div>
   <div id="importStatus" class="small"></div>
   <div id="fileList"></div>

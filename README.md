@@ -393,3 +393,98 @@ Việt nên không font nào vỡ dấu do thiếu glyph.
 - `screenshots/` — ảnh chụp màn hình bản 1.2 để đối chiếu (không phải file của app, chỉ để
   kiểm chứng; khi đưa web lên host công khai có thể giữ hoặc bỏ thư mục này tùy Bùi).
 - `README.md` — file này.
+
+## Bản web 1.6 — đóng băng giao diện, sửa cỗ máy bên trong
+
+Bản 1.6 **chỉ sửa nhánh web** (`web/`), không đụng `android/`, không publish web.
+Giao diện giữ nguyên 1.5 (ribbon, khung, icon, bố cục, màu sắc không đổi; chỉ
+thêm thuộc tính `title` giải thích cho nút Chính tả và mở rộng danh sách
+`accept` của ô nhập file — không đổi bố cục). Cache service worker: `v6 → v7`.
+Chạy kiểm chứng: `node test-core-1.6.cjs` (trong `web/`, cần `soffice` cho
+phần đối chiếu LibreOffice; file xuất mẫu `test-out-1.6.*` được tạo lại mỗi
+lần chạy). Kết quả đợt này: **96 PASS, 0 FAIL**.
+
+### 1. Excel tính đúng — giá trị số thật tách khỏi định dạng hiển thị
+Lỗi cũ: ô gõ "1.000.000 ₫" hay "50%" là chuỗi hiển thị; công thức trỏ tới
+dùng `parseFloat` nên chỉ lấy được 1 (cắt ở dấu chấm đầu) hoặc 50 — sai đáp án.
+Sửa tận gốc: ô giữ nguyên chuỗi người gõ; khi cần số, `parseCellNumber()`
+dịch theo cách viết tiếng Việt (dấu chấm = phân tách nghìn, dấu phẩy = thập
+phân, bỏ hậu tố ₫/đ/VND, hậu tố % chia cho 100). Mọi công thức tính trên số
+thật; hiển thị áp định dạng lên số thật đó.
+Quy ước (giống Excel): ô gõ "50%" có giá trị thật 0,5 (hiện 50%, `=A1*2` ra 1);
+ô gõ 50 rồi mới áp định dạng % thì hiện 5000% (vì 50 = 5000%).
+Hàm có: SUM, AVERAGE, COUNT (chỉ đếm ô có số), MAX, MIN, IF (tính lười),
+ROUND, ABS, VLOOKUP (chỉ khớp chính xác), phép tính + − × ÷, ngoặc, tham
+chiếu ô/vùng, hậu tố %, chuỗi trong công thức, so sánh. Lỗi lan đúng: tham
+chiếu vòng, chia cho 0, ô lỗi trong vùng SUM đều ra `#LỖI`; ô trống trong
+phép tính tính bằng 0; AVERAGE/MAX/MIN của vùng rỗng trả 0 (giữ hành vi cũ).
+Giới hạn: lưới app chỉ 10 cột (A–J) × 30 hàng; VLOOKUP chưa có tìm gần đúng.
+
+### 2. Không mất dữ liệu lén khi lưu — đã lưu theo file, hay chỉ báo rõ
+Bảng "chỉ trong phiên, chưa lưu theo file" (báo cáo 1.4) xử lý như sau —
+mục nào cũng hoặc LƯU ĐƯỢC, hoặc APP BÁO RÕ bằng hộp xác nhận trước khi xuất
+và ghi trong khung Tệp → Thông tin; không còn mục nào im lặng:
+
+| Mục | Kết quả 1.6 |
+|---|---|---|
+| Word: thụt lề đoạn, viền đoạn | LƯU theo .docx (`w:ind`, `w:pBdr`) |
+| Word: theo dõi thay đổi | LƯU theo .docx (`w:ins`/`w:del` thật, kèm tác giả/ngày) |
+| Word: màu nền trang | LƯU theo .docx (`w:background` + `settings.xml` bật hiện nền) và lưu kèm bản ghi trong máy |
+| Word: khoảng cách dòng | LƯU theo .docx (`w:spacing`) |
+| Word: nhận xét | BÁO TRƯỚC: xuất thành đoạn văn thường, không còn là nhận xét Word |
+| Word: đầu trang/chân trang, bố cục nhiều cột | BÁO TRƯỚC: xuất thành đoạn văn thường / một cột |
+| Excel: định dạng ô (đậm, màu chữ, tô nền, tiền/%, thập phân, căn lề, xuống dòng) | LƯU theo .xlsx (`styles.xml` + `s="..."`) |
+| Excel: khóa trang, đóng băng hàng đầu, lưới | LƯU theo .xlsx (`sheetProtection`, `<pane>`, `showGridLines`) và lưu kèm bản ghi |
+| Excel: ghi chú ô, biểu đồ cột | BÁO TRƯỚC khi xuất (ghi chú/biểu đồ chỉ ở trong app) |
+| Excel: cài đặt in | Không có giao diện cài đặt in trong nhánh web nên không có gì để mất; file xuất dùng mặc định của Excel/LibreOffice |
+| PowerPoint: định dạng chữ tiêu đề, nền slide, hình dạng đơn giản, hiệu ứng, cỡ slide, slide ẩn | LƯU theo .pptx |
+| PowerPoint: nhận xét slide, biểu đồ slide, khóa bài | BÁO TRƯỚC khi xuất (chỉ có tác dụng trong app) |
+
+Lưu vào máy (localStorage) thì GIỮ ĐỦ mọi mục trên, kể cả mục chưa xuất
+được — chỉ khi XUẤT file thì mục đó mới mất dạng gốc, nên cảnh báo đặt ở
+cửa xuất. Lưu nguyên tử theo cách của trình duyệt (trình duyệt không có API
+đổi tên file tạm): file xuất được dựng xong thành một blob rồi mới tải xuống;
+lưu vào máy thì `JSON.stringify` xong mới ghi một lần bằng `setItem`, ghi lỗi
+thì bản cũ còn nguyên và app không báo "Đã lưu" giả. Chỉ báo "Chưa lưu" giờ
+so sánh nội dung hiện tại với ảnh chụp lúc lưu/mở — đã lưu rồi thì hết báo,
+sửa tiếp thì báo lại.
+
+### 3. File đi ra đi vào giữ nguyên nội dung (round-trip, đối chiếu LibreOffice)
+- Word: xuất .docx giữ ảnh (media + quan hệ + drawing), bảng, đậm/nghiêng/
+  gạch chân, tiêu đề; nhập .docx giữ lại đủ các thứ đó cộng danh sách, thụt
+  lề, viền đoạn, theo dõi thay đổi, liên kết, màu nền trang. Không nhập được:
+  đầu trang/chân trang, ghi chú Word thật, mục lục tự động.
+- Excel: xuất .xlsx giữ CÔNG THỨC (`<f>`, không chỉ giá trị tính sẵn) và
+  định dạng ô; nhập .xlsx giữ công thức + định dạng cơ bản (kể cả file do
+  LibreOffice lưu lại, dùng sharedStrings). Chỉ nhập trang tính đầu tiên,
+  tối đa 10 cột × 30 hàng; nhiều trang tính, ô hợp nhất, biểu đồ không nhập.
+- PowerPoint: xuất .pptx giữ chữ + ảnh + thứ tự slide + slide ẩn + định dạng
+  chữ + hiệu ứng + cỡ; nhập .pptx giữ thứ tự, tiêu đề, nội dung, ảnh đầu mỗi
+  slide, slide ẩn. Không nhập: biểu đồ, bảng, hình dạng, ghi chú, hiệu ứng.
+  Trong đợt này kiểm chứng vòng tròn đã bắt được một lỗi thật: bản viết lại
+  làm rơi thẻ `<a:r>` ở tiêu đề slide khiến LibreOffice đọc file xuất thì
+  tiêu đề trống (dù chuỗi thô vẫn có chữ) — đã sửa và kiểm chứng lại bằng
+  PDF do LibreOffice render (hiện đủ "Slide Một", "Slide Hai").
+- Đối chiếu LibreOffice headless: cả 3 file xuất đều chuyển được sang PDF;
+  PDF xlsx có giá trị tính đúng (1000000, 2000000); PDF pptx hiện đủ tiêu đề
+  + gạch đầu dòng; file do LibreOffice lưu lại nhập ngược vào app vẫn đủ
+  nội dung chính (đủ 3 loại).
+
+### 4. Hoàn tác / làm lại
+- Excel: sửa ô, undo, redo đúng; chèn/xóa hàng/cột và sắp xếp giờ kéo định
+  dạng theo nội dung (lỗi cũ: định dạng ở lại số hàng cũ); ảnh chụp undo gồm
+  cả khóa trang/đóng băng/lưới.
+- PowerPoint: gõ tiêu đề/nội dung có 1 bước undo cho mỗi lần dừng lại ở slide
+  (không phải mỗi phím); đổi nền/cỡ/hiệu ứng/khóa đều có undo; ảnh chụp gồm
+  cả cỡ/hiệu ứng/khóa; thêm/xóa slide không nhân đôi, không đảo thứ tự.
+- Word: hoàn tác dùng lệnh native của trình duyệt (mọi sửa nội dung đều qua
+  contenteditable/execCommand nên nằm trong ngăn xếp undo của trình duyệt) —
+  phần này không mô phỏng được trong bộ kiểm chứng Node nên không ghi PASS
+  giả; chấp nhận/từ chối thay đổi là sửa DOM trực tiếp, không tính là một
+  bước undo nội dung.
+
+### 5. Chính tả
+Chỉ là gạch chân cơ học của trình duyệt — app ghi rõ ở hộp thoại bật/tắt,
+thuộc tính `title` của nút, và khung Tệp → Thông tin: "CHƯA có từ điển
+tiếng Việt, không phải kiểm tra chính tả thật". Không làm từ điển thật vì
+không có nguồn từ điển mở hợp lệ trong đợt này, không tự bịa danh sách từ.
