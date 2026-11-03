@@ -1,4 +1,4 @@
-# Văn phòng của Bùi — Bản web (PWA) 1.2
+# Văn phòng của Bùi — Bản web (PWA) 1.3
 
 ## Vì sao là bản web, không phải app App Store thật
 
@@ -6,7 +6,7 @@
 Apple Developer trả phí + máy Mac để ký và đóng gói**, mà môi trường làm bản này không có
 cả hai. Vì vậy đầu ra cho iPhone/iPad là **bản web (PWA)**: mở `index.html` bằng Safari,
 và khi được phục vụ qua https thì cài được như app qua **Chia sẻ → Thêm vào Màn hình chính**
-(kèm `manifest.json` + service worker `sw.js`, cache `van-phong-bui-v3`).
+(kèm `manifest.json` + service worker `sw.js`, cache `van-phong-bui-v4`).
 
 ## Chạy như thế nào
 
@@ -18,6 +18,68 @@ và khi được phục vụ qua https thì cài được như app qua **Chia s�
 - **HTML/JS thuần, không framework build**, không cần cài đặt, không thu thập dữ liệu,
   không nhúng key/secret, không ghi sẵn nội dung mẫu (nội dung demo trong ảnh chụp màn hình
   chỉ seed trong phiên chụp để kiểm chứng, không có trong app).
+
+## Mới trong bản 1.3 — sửa 9 lỗi giao diện Bùi chê ở bản 1.2 (đặc biệt vỡ nát ở 390px)
+
+Bản 1.3 **không thêm tính năng**, chỉ sửa khung hình — toàn bộ tính năng 1.2 giữ nguyên:
+
+1. **Một hàng tiêu đề duy nhất:** xóa hẳn hàng chuyển app thứ hai; nút ☰ ở góc trái
+   thanh tiêu đề mở khung Tệp, trong đó có nhóm “Ứng dụng” (Word / Excel / PowerPoint /
+   PDF & OCR / Dịch / Quản lý file / Đăng nhập / Cài đặt). Từ trên xuống chỉ còn:
+   thanh tiêu đề màu → hàng tab ribbon → ribbon lệnh → vùng làm việc → thanh trạng thái.
+2. **Cuộn ngang ẩn thanh cuộn + snap:** ribbon, dải tab và panel slide khi xếp ngang đều
+   ẩn thanh cuộn, vuốt dừng đúng nhóm/tab, không lưng chừng.
+3. **Bỏ hàng tên tài liệu + Lưu/Tài liệu mới chen giữa ribbon và trang giấy** (kể cả hàng
+   Trình chiếu/Thêm slide/Xuất .pptx lặp lại dưới PowerPoint). Ba ô tên vẫn nằm trong DOM
+   dạng ẩn để mọi logic cũ chạy nguyên; tên nhìn thấy được chuyển vào
+   Backstage → Thông tin (ô “Tên tệp”, đồng bộ 2 chiều với ô ẩn).
+4. **Bỏ đoạn hướng dẫn dùng bằng ngón tay thường trực** trên Word/Excel/PowerPoint/PDF;
+   toàn bộ nội dung đó (kể cả phím tắt Word, danh sách công thức Excel, ghi chú nén ảnh
+   slide) gom thành mục “Hướng dẫn dùng bằng ngón tay” đóng trong Backstage → Thông tin,
+   chỉ mở ra mới thấy. Các ghi chú kỹ thuật khác giữ nguyên.
+5. **Hết nhãn ribbon lặp:** nút chọn font chỉ hiện tên font, không còn chữ “Phông chữ”
+   trùng tên nhóm; đã rà cả 33 nhóm ribbon, không nút nào có nhãn trùng đúng tên nhóm
+   chứa nó.
+6. **Thước nằm trong trang giấy:** thước chuyển vào bên trong trang, ngay trên vùng soạn;
+   hàm `syncRuler()` đặt 2 vạch mốc lề đúng padding trái/phải tính từ vùng soạn, gọi khi
+   tải trang, khi resize và sau mỗi lần đổi lề/khổ/hướng trang; nút bật/tắt thước vẫn chạy.
+7. **Trang giấy mobile gần full chiều rộng:** ở khổ ≤700px, vùng làm việc padding 8px,
+   vùng soạn padding 20px (thay 32px); desktop giữ nguyên.
+8. **Thanh trạng thái chỉ 1 dòng ở mọi khổ:** không ngắt dòng, phần trái co lại kèm dấu …,
+   phần phải không bị ép nhỏ; ở khổ ≤700px ẩn phần giữa và thu thanh trượt còn 90px.
+   Định dạng “Trang 1 • N từ • M ký tự” giữ nguyên.
+9. **Excel/PowerPoint mobile:** thanh công thức không ngắt dòng, ô nhập co được, hộp tên ô
+   không bị ép; thẻ Sheet và panel slide ngang đều ẩn thanh cuộn + snap; khung slide full
+   chiều rộng; đã kiểm chứng ở 390px.
+- Cache service worker bump `van-phong-bui-v3` → `van-phong-bui-v4`; ảnh kiểm chứng bản
+  1.3 trong `screenshots/` với tiền tố `v13-`.
+
+## Kiểm chứng bản 1.3 (bằng mắt + chức năng)
+
+- `node --check app.js` đạt.
+- **Chụp thật bằng chrome-headless-shell local** (mở `file://`, điều khiển qua CDP,
+  nội dung demo chỉ seed trong phiên chụp, không có trong app):
+  `screenshots/v13-word-1280.png`, `v13-word-390.png`, `v13-excel-1280.png`,
+  `v13-excel-390.png`, `v13-ppt-1280.png`, `v13-ppt-390.png`,
+  `v13-backstage-1280.png`, `v13-backstage-390.png`, cộng
+  `v13-excel-sheettabs-390.png` (khổ cao để thấy hàng thẻ Sheet).
+- **Soi từng ảnh bằng mắt:** cả 3 món ở cả 2 khổ đều một hàng tiêu đề (☰ + QAT +
+  tên app/file), một hàng tab ribbon, ribbon không còn thanh cuộn lộ, không còn hàng
+  tên tài liệu hay đoạn hướng dẫn chen giữa ribbon và vùng làm việc, thước nằm gọn
+  trong trang giấy, trang Word mobile gần full rộng, thanh trạng thái chỉ 1 dòng,
+  khung slide mobile full rộng. **Soi ảnh bắt được 1 lỗi và đã sửa tận gốc rồi chụp
+  lại:** bản chụp đầu của PowerPoint mobile vẫn xếp ngang panel slide nên khung slide
+  chính bị đẩy ra ngoài màn hình 390px — đã thêm `#slideEditor{flex-direction:column}`
+  ở khổ ≤700px, chụp lại thấy thumb ngang ở trên, khung slide full rộng ở dưới.
+- **Kiểm chứng chức năng trong trình duyệt thật:** thước — padding vùng soạn 96px/96px,
+  thước rộng 794px, 2 vạch mốc đúng 96px và 698px (= 794 − 96), thước nằm trong trang
+  giấy; đổi tên trong Backstage → Thông tin (“Tên mới kiểm chứng”) ghi đúng vào ô ẩn
+  và đổi luôn tiêu đề trên thanh tiêu đề; mục hướng dẫn trong Thông tin đóng sẵn,
+  đủ 4 đoạn (Word/Excel/PowerPoint/PDF); hàng thẻ Sheet cuộn ngang, ẩn thanh cuộn,
+  có snap.
+- Giới hạn kiểm chứng như bản 1.2: font hiển thị trong ảnh headless là font dự phòng
+  hệ thống (môi trường chụp không tải được Google Fonts), Bùi vẫn nên nhìn bằng mắt
+  trên điện thoại thật để chốt font Carlito và cảm giác chạm cuối cùng.
 
 ## Mới trong bản 1.2 — khung hình Office bản desktop Windows
 
@@ -216,7 +278,7 @@ Việt nên không font nào vỡ dấu do thiếu glyph.
   panel slide và màn hình trình chiếu.
 - `app.js` — toàn bộ logic (soạn thảo, bảng tính, trình chiếu + xuất .pptx, PDF, OCR, camera
   tạo PDF, dịch, file, OAuth, khung Office).
-- `manifest.json`, `sw.js` (cache `van-phong-bui-v3`), `icon.svg` — PWA (chỉ có tác dụng đầy
+- `manifest.json`, `sw.js` (cache `van-phong-bui-v4`), `icon.svg` — PWA (chỉ có tác dụng đầy
   đủ qua https).
 - `Huong_dan_OAuth_Google_Microsoft.md` — hướng dẫn tự đăng ký app OAuth.
 - `CHECKLIST_OFFICE_WINDOWS_1.2.md` — checklist đối chiếu từng phần tử Office Windows.

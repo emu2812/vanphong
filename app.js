@@ -1509,9 +1509,7 @@ var ribbonTab='home';
 function switchApp(app){
   currentApp=app;
   try{document.body.className='app-'+(app==='word'?'word':app==='excel'?'excel':app==='ppt'?'ppt':'other')}catch(e){}
-  try{document.querySelectorAll('#appswitch button').forEach(function(b){
-    if(b.dataset.app===app)b.classList.add('active');else b.classList.remove('active');
-  })}catch(e){}
+  /* Bản 1.3: chọn ứng dụng qua nút ☰ (Backstage → Ứng dụng). */
   Object.keys(APP_SECTIONS).forEach(function(k){
     var sec=$('tab-'+APP_SECTIONS[k]);if(sec)sec.classList.remove('active');
   });
@@ -1579,7 +1577,7 @@ function setZoom(v){
   ['wordPage','sheetWrap','slideMain'].forEach(function(id){
     var el=$(id);if(el)el.style.zoom=zoomLevel+'%';
   });
-  updateStatusBar();
+  updateStatusBar();syncRuler();
 }
 function renderRuler(){
   var rn=$('rulerNums');if(!rn)return;
@@ -1587,7 +1585,24 @@ function renderRuler(){
   for(var i=0;i<20;i++)html+='<span>'+(i===0?'':i)+'</span>';
   rn.innerHTML=html;
 }
-function toggleRuler(){rulerOn=!rulerOn;var r=$('ruler');if(r)r.style.display=rulerOn?'block':'none';}
+/* Bản 1.3: thước nằm TRONG #wordPage nên rộng đúng bằng trang giấy.
+   syncRuler() đặt 2 vạch mốc lề tại đúng padding-left / padding-right
+   tính được từ #editor (getComputedStyle), gọi khi tải trang, resize
+   và sau mỗi lần đổi lề / khổ / hướng trang. */
+function syncRuler(){
+  var r=$('ruler'),ed=$('editor'),ml=$('rulerMarkLeft'),mr=$('rulerMarkRight');
+  if(!r||!ed||!ml||!mr)return;
+  if(r.style.display==='none')return;
+  try{
+    var cs=getComputedStyle(ed);
+    var pl=parseFloat(cs.paddingLeft)||0,pr=parseFloat(cs.paddingRight)||0;
+    var w=r.clientWidth;
+    if(!w)return;
+    ml.style.left=pl+'px';
+    mr.style.left=Math.max(pl,w-pr)+'px';
+  }catch(e){}
+}
+function toggleRuler(){rulerOn=!rulerOn;var r=$('ruler');if(r)r.style.display=rulerOn?'block':'none';if(rulerOn)syncRuler();}
 function toggleGridlines(){
   gridOn=!gridOn;var w=$('sheetWrap');
   if(w){if(gridOn)w.classList.remove('nogrid');else w.classList.add('nogrid');}
@@ -1611,6 +1626,19 @@ function saveAsCurrent(){
   else if(currentApp==='ppt'){currentDeckId=null;$('deckName').value=v;saveDeck();}
   else{alert('Mục này không có file Office để lưu thành.');return}
   closeBackstage();
+}
+/* Bản 1.3: ô "Tên tệp" nhìn thấy được trong Backstage → Thông tin, đồng bộ
+   2 chiều với 3 input ẩn docName / sheetName / deckName (mở Thông tin thì
+   điền từ input ẩn, đổi tên thì ghi lại input ẩn + updateTitleBar()). */
+function currentFileInput(){
+  if(currentApp==='word')return $('docName');
+  if(currentApp==='excel')return $('sheetName');
+  if(currentApp==='ppt')return $('deckName');
+  return null;
+}
+function renameCurrentFile(v){
+  var inp=currentFileInput();if(!inp)return;
+  inp.value=v;updateTitleBar();
 }
 /* Backstage (tab Tệp): Mới / Mở / Lưu / Lưu thành / Thông tin — xem trước tên file. */
 function openBackstage(){var b=$('backstage');if(!b)return;b.style.display='flex';backstageShow('open');}
@@ -1651,7 +1679,20 @@ function backstageShow(view){
     }else{
       info='Mục này là tiện ích (PDF / Dịch / File / Cài đặt), không phải file Office.';
     }
-    c.innerHTML='<h3>Thông tin</h3><p>'+info+'</p>';
+    var nameRow='';
+    var fi=currentFileInput();
+    if(fi)nameRow='<label>Tên tệp:</label><input type="text" id="bsFileName" value="'+esc(fi.value)+'" placeholder="Tên tệp" oninput="renameCurrentFile(this.value)">';
+    /* Bản 1.3: toàn bộ hướng dẫn dùng bằng ngón tay / phím tắt trước đây nằm
+       thường trực trên vùng làm việc nay gom về đây, đóng trong <details> —
+       chỉ mở ra mới thấy, không chiếm chỗ soạn thảo. Nội dung giữ nguyên,
+       kể cả danh sách công thức Excel và ghi chú nén ảnh slide. */
+    var guide='<details><summary>Hướng dẫn dùng bằng ngón tay</summary>'
+      +'<p><b>Word:</b> chạm vào trang giấy là gõ ngay. Phím tắt khi có bàn phím: Ctrl+B đậm, Ctrl+I nghiêng, Ctrl+U gạch chân, Ctrl+S lưu. Font mặc định cho tài liệu mới: Carlito 11pt (tương đương Calibri 11).</p>'
+      +'<p><b>Excel:</b> chạm một lần để chọn ô, chạm hai lần liên tiếp để sửa ô, vuốt để cuộn bảng. Công thức hỗ trợ: =SUM(A1:A3), =AVERAGE(A1:A3), =COUNT, =MAX, =MIN, tham chiếu ô (=A1) và phép tính (+ − × ÷, ngoặc). Sửa xong chạm sang ô khác là tính lại ngay.</p>'
+      +'<p><b>PowerPoint:</b> bấm nút trình chiếu là xem toàn màn hình; vuốt ngón tay sang trái/phải để chuyển slide, hoặc bấm hai nút Trước/Sau lớn ở dưới màn hình; bấm “Thoát” để về lại trang soạn. Ảnh chèn vào slide được nén nhỏ (tối đa 1280px) trước khi lưu để vừa bộ nhớ trình duyệt.</p>'
+      +'<p><b>PDF:</b> chụm hai ngón để phóng to/thu nhỏ trang, vẽ chú thích bằng ngón tay trên trang, chạm để thêm ghi chú. Không cần chuột hay thao tác chính xác từng pixel.</p>'
+      +'</details>';
+    c.innerHTML='<h3>Thông tin</h3><p>'+info+'</p>'+nameRow+guide;
   }
 }
 /* Undo / Redo: Word dùng lệnh của trình duyệt; Excel/PowerPoint dùng ảnh chụp nhanh. */
@@ -1760,15 +1801,18 @@ function setPageBg(color){var p=$('wordPage');if(p)p.style.background=color;}
 function setPageMargins(kind){
   var ed=$('editor');if(!ed)return;
   ed.style.padding=(kind==='rong'?'96px':kind==='hep'?'32px':'64px');
+  syncRuler();
 }
 function setPageSize(size){
   var p=$('wordPage');if(!p)return;
   p.classList.remove('size-a5','landscape');
   if(size==='A5')p.classList.add('size-a5');
+  syncRuler();
 }
 function setPageOrientation(o){
   var p=$('wordPage');if(!p)return;
   if(o==='ngang')p.classList.add('landscape');else p.classList.remove('landscape');
+  syncRuler();
 }
 /* Excel: thao tac o / hang / cot / cong thuc / sap xep / khoa. */
 function updateFormulaBar(){
@@ -1889,7 +1933,8 @@ function presentFromCurrent(){
   $('googleClientId').value=s.googleClientId||'';$('msClientId').value=s.msClientId||'';$('ocrSpaceKey').value=s.ocrSpaceKey||'';
   googleToken=sessionStorage.getItem('vb_google_token')||null;
   renderDocList();renderSheetList();renderDeckList();renderSlideEditor();renderFileList();renderSheet();renderPhotos();updateAuthBar();
-  try{renderRibbonTabs();switchApp('word');renderRuler();updateStatusBar();}catch(e){}
+  try{renderRibbonTabs();switchApp('word');renderRuler();syncRuler();updateStatusBar();}catch(e){}
+  if(window.addEventListener)window.addEventListener('resize',function(){syncRuler();});
   var ed=$('editor');if(ed&&ed.addEventListener)ed.addEventListener('input',function(){updateStatusBar();});
   document.addEventListener('keydown',function(e){
     if(!(e.ctrlKey||e.metaKey))return;

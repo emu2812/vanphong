@@ -1,4 +1,4 @@
-/* Văn phòng của Bùi — bản web 1.2. Khung hình theo Office bản desktop Windows:
+/* Văn phòng của Bùi — bản web 1.3. Khung hình theo Office bản desktop Windows:
    thanh tiêu đề màu theo app + Quick Access Toolbar, dải tab ribbon, ribbon lệnh theo nhóm,
    vùng làm việc nền xám + trang trắng có bóng đổ, thanh trạng thái dưới đáy.
    HTML/JS thuần, không framework build. Dùng bằng cảm ứng: nút tối thiểu 48px,
@@ -24,29 +24,34 @@ textarea{min-height:110px}
 .row>*{flex:1 1 auto}
 
 /* ---------- Thanh tiêu đề (màu theo app) + Quick Access Toolbar ---------- */
-#titlebar{display:flex;flex-wrap:wrap;align-items:stretch;gap:0;background:var(--app);color:#fff;padding:0 8px}
-#qat{display:flex;gap:2px;align-items:center}
+/* Bản 1.3: chỉ còn MỘT hàng tiêu đề — nút ☰ mở khung Tệp (chọn ứng dụng ở đó),
+   không còn hàng chuyển app thứ hai chồng dưới tiêu đề. */
+#titlebar{display:flex;flex-wrap:nowrap;align-items:stretch;gap:0;background:var(--app);color:#fff;padding:0 8px}
+#appmenu{min-width:48px;min-height:48px;padding:10px 12px;background:transparent;border:none;color:#fff;font-size:22px;line-height:1;flex-shrink:0}
+#appmenu:hover{background:rgba(255,255,255,.18)}
+#qat{display:flex;gap:2px;align-items:center;flex-shrink:0}
 #qat button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;min-width:56px;min-height:48px;padding:4px 8px;background:transparent;border:none;color:#fff;border-radius:0;font-size:12px}
 #qat button:hover{background:rgba(255,255,255,.18)}
 #qat svg{width:22px;height:22px;display:block}
-#apptitle{display:flex;align-items:center;gap:6px;padding:0 14px;font-size:17px;flex:1 1 auto;min-width:220px}
-#apptitle #appName{font-weight:700}
-#apptitle #saveState{font-size:13px;opacity:.85}
-#appswitch{display:flex;gap:2px;align-items:center;overflow-x:auto;flex-wrap:nowrap}
-#appswitch button{min-height:48px;border:none;background:transparent;color:#fff;border-radius:0;white-space:nowrap;font-size:15px;padding:10px 12px}
-#appswitch button.active{background:#fff;color:var(--app);font-weight:700}
+#apptitle{display:flex;align-items:center;gap:6px;padding:0 14px;font-size:17px;flex:1 1 auto;min-width:0;overflow:hidden;white-space:nowrap}
+#apptitle #appName{font-weight:700;flex-shrink:0}
+#apptitle #docTitle{overflow:hidden;text-overflow:ellipsis}
+#apptitle #saveState{font-size:13px;opacity:.85;flex-shrink:0}
 
 /* ---------- Dải tab ribbon ---------- */
-#ribbonTabs{display:flex;gap:0;overflow-x:auto;background:#fff;border-bottom:1px solid var(--line);padding:0 8px;flex-wrap:nowrap}
-#ribbonTabs button{min-height:48px;border:none;border-bottom:3px solid transparent;background:#fff;border-radius:0;white-space:nowrap;font-size:16px;padding:10px 14px;color:#333}
+/* Bản 1.3: cuộn ngang ẨN thanh cuộn + dừng đúng tab (snap), không lưng chừng. */
+#ribbonTabs{display:flex;gap:0;overflow-x:auto;background:#fff;border-bottom:1px solid var(--line);padding:0 8px;flex-wrap:nowrap;scrollbar-width:none;-ms-overflow-style:none;scroll-snap-type:x proximity}
+#ribbonTabs::-webkit-scrollbar{display:none}
+#ribbonTabs button{min-height:48px;border:none;border-bottom:3px solid transparent;background:#fff;border-radius:0;white-space:nowrap;font-size:16px;padding:10px 14px;color:#333;scroll-snap-align:start;flex-shrink:0}
 #ribbonTabs button.active{border-bottom-color:var(--app);color:var(--app);font-weight:700}
 #ribbonTabs button.filetab{background:var(--app);color:#fff;font-weight:700}
 
 /* ---------- Ribbon lệnh theo nhóm ---------- */
-#ribbon{background:#fff;border-bottom:1px solid var(--line);overflow-x:auto}
+#ribbon{background:#fff;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;scroll-snap-type:x proximity}
+#ribbon::-webkit-scrollbar{display:none}
 .rpanel{display:none;gap:0;padding:6px 8px;min-width:max-content}
 .rpanel.active{display:flex}
-.rgroup{display:flex;flex-direction:column;padding:2px 12px;border-right:1px solid var(--line)}
+.rgroup{display:flex;flex-direction:column;padding:2px 12px;border-right:1px solid var(--line);scroll-snap-align:start}
 .rgroup:last-child{border-right:none}
 .rgroup .rbtns{display:flex;gap:4px;align-items:flex-start;flex:1}
 .rgroup .glabel{text-align:center;font-size:12px;color:var(--muted);padding-top:4px}
@@ -65,14 +70,14 @@ section.tab.active{display:block}
 section.tab:not(#tab-editor):not(#tab-sheet):not(#tab-slides){padding:16px;max-width:980px;margin:0 auto}
 h2{font-size:20px;margin:8px 0}
 h3{font-size:17px;margin:16px 0 6px}
-.docbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px 16px;background:#fff;border-bottom:1px solid var(--line)}
-.docbar label{font-size:15px;white-space:nowrap}
-.docbar input[type=text]{flex:1 1 220px}
 section.tab>.small{padding:0 16px}
 .workarea{background:var(--workbg);padding:24px 16px;min-height:62vh}
+/* Bản 1.3: thước NẰM TRONG trang giấy (#wordPage), rộng đúng bằng trang,
+   không tràn cả cửa sổ. Hai vạch mốc lề do syncRuler() đặt đúng padding của #editor. */
 #ruler{height:26px;background:#fff;border-bottom:1px solid var(--line);overflow:hidden;position:relative}
 #rulerNums{display:flex;height:100%}
 #rulerNums span{flex:0 0 37.8px;border-left:1px solid #bbb;font-size:11px;color:#888;padding-left:2px;line-height:26px}
+.rulermark{position:absolute;top:0;bottom:0;width:2px;background:var(--app);pointer-events:none}
 #wordPage{background:#fff;max-width:794px;margin:0 auto;box-shadow:0 2px 14px rgba(0,0,0,.35);min-height:1000px}
 #wordPage.size-a5{max-width:560px}
 #wordPage.landscape{max-width:1123px;min-height:794px}
@@ -86,10 +91,10 @@ section.tab>.small{padding:0 16px}
 .comment-para{color:#555;border-left:3px solid #d24726;padding-left:10px;font-style:italic}
 
 /* ---------- Excel: thanh công thức, lưới, thẻ sheet ---------- */
-#formulabar{display:flex;gap:0;align-items:stretch;background:#fff;border-bottom:1px solid var(--line);padding:8px 16px}
-#cellAddr{min-width:76px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);font-weight:700;background:#f7f7f7;padding:0 10px}
-#fxMark{display:flex;align-items:center;padding:0 12px;font-style:italic;font-family:Georgia,serif;font-size:18px;color:var(--muted);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
-#formulaBar{border:1px solid var(--line);border-left:none;flex:1}
+#formulabar{display:flex;flex-wrap:nowrap;gap:0;align-items:stretch;background:#fff;border-bottom:1px solid var(--line);padding:8px 16px}
+#cellAddr{min-width:76px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);font-weight:700;background:#f7f7f7;padding:0 10px}
+#fxMark{display:flex;flex-shrink:0;align-items:center;padding:0 12px;font-style:italic;font-family:Georgia,serif;font-size:18px;color:var(--muted);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+#formulaBar{border:1px solid var(--line);border-left:none;flex:1;min-width:0}
 #sheetWrap{overflow:auto;max-height:560px;border:1px solid var(--line);background:#fff;box-shadow:0 2px 14px rgba(0,0,0,.25)}
 #sheetWrap.nogrid table.sheet td,#sheetWrap.nogrid table.sheet th{border-color:transparent}
 table.sheet{border-collapse:separate;border-spacing:0;background:#fff}
@@ -102,8 +107,10 @@ table.sheet td.cell.selected{background:#dcefe3;outline:2px solid var(--app)}
 table.sheet td.cell div.cellval{padding:12px 8px;min-height:48px;font-size:16px;white-space:nowrap;overflow:hidden}
 table.sheet td.cell input{height:48px;border:none;width:100%;padding:12px 8px;font-size:16px;min-height:48px}
 table.sheet input.formula{color:var(--app)}
-#sheettabs{display:flex;gap:8px;align-items:center;background:#fff;border-top:1px solid var(--line);padding:8px 16px}
-.sheet-tab{min-height:48px;border:1px solid var(--line);border-bottom:none;border-radius:6px 6px 0 0;background:#f2f2f2;font-weight:700}
+#sheettabs{display:flex;flex-wrap:nowrap;gap:8px;align-items:center;background:#fff;border-top:1px solid var(--line);padding:8px 16px;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;scroll-snap-type:x proximity}
+#sheettabs::-webkit-scrollbar{display:none}
+#sheettabs .small{white-space:nowrap;flex-shrink:0}
+.sheet-tab{min-height:48px;border:1px solid var(--line);border-bottom:none;border-radius:6px 6px 0 0;background:#f2f2f2;font-weight:700;flex-shrink:0;scroll-snap-align:start}
 .sheet-tab.active{background:#fff;border-top:3px solid var(--app)}
 
 /* ---------- PowerPoint: panel thu nhỏ + khung slide lớn ---------- */
@@ -118,7 +125,7 @@ table.sheet input.formula{color:var(--app)}
 .thumb .tbody{font-size:12px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .thumb .tnum,.thumb .ttitle,.thumb .tbody{display:block}
 #slideMain{flex:1;min-width:0}
-.slideframe{background:#fff;box-shadow:0 2px 14px rgba(0,0,0,.35);padding:28px;aspect-ratio:16/9;overflow:auto;display:flex;flex-direction:column}
+.slideframe{width:100%;background:#fff;box-shadow:0 2px 14px rgba(0,0,0,.35);padding:28px;aspect-ratio:16/9;overflow:auto;display:flex;flex-direction:column}
 .slideframe.ratio-43{aspect-ratio:4/3}
 .slideframe input[type=text]{font-size:26px;font-weight:700;border:1px solid transparent}
 .slideframe input[type=text]:focus{border-color:var(--line)}
@@ -127,8 +134,10 @@ table.sheet input.formula{color:var(--app)}
 .slidecard img.slideimg{max-width:100%;max-height:260px;border:1px solid var(--line);border-radius:4px;display:block;margin:8px 0}
 
 /* ---------- Thanh trạng thái dưới đáy ---------- */
-#statusbar{display:flex;gap:12px;align-items:center;justify-content:space-between;background:#f2f2f2;border-top:1px solid var(--line);padding:4px 16px;min-height:48px;font-size:14px;position:sticky;bottom:0;z-index:40}
-#statusRight{display:flex;gap:8px;align-items:center}
+/* Bản 1.3: CHỈ 1 dòng ở mọi khổ — trái co lại kèm dấu …, phải không bị ép nhỏ. */
+#statusbar{display:flex;flex-wrap:nowrap;gap:12px;align-items:center;justify-content:space-between;background:#f2f2f2;border-top:1px solid var(--line);padding:4px 16px;min-height:48px;font-size:14px;position:sticky;bottom:0;z-index:40}
+#statusLeft{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#statusRight{display:flex;gap:8px;align-items:center;flex-shrink:0}
 #zoomSlider{width:170px;min-height:48px}
 #zoomLabel{min-width:52px;text-align:right}
 
@@ -141,6 +150,7 @@ table.sheet input.formula{color:var(--app)}
 #backstageNav{flex:0 0 200px;background:#f2f2f2;border-right:1px solid var(--line);padding:12px 0;display:flex;flex-direction:column;gap:4px}
 #backstageNav button{border:none;border-radius:0;text-align:left;background:transparent;padding:12px 16px;font-size:17px}
 #backstageNav button.active{background:#fff;font-weight:700;border-left:4px solid var(--app)}
+.bs-navgroup{padding:16px 16px 4px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)}
 #backstageContent{flex:1;padding:24px 20px;overflow:auto}
 .bs-file{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px;border:1px solid var(--line);border-radius:4px;background:#fff;margin:8px 0}
 
@@ -175,13 +185,26 @@ table.sheet input.formula{color:var(--app)}
 .badge.drive{background:#dbeafe}.badge.onedrive{background:#e0e7ff}.badge.pending{background:#fff4d6}.badge.local{background:#eee}
 #fontTest{padding:14px;border:1px solid var(--line);border-radius:4px;background:#fff;font-size:20px}
 @media(max-width:700px){
+  /* Bản 1.3: trang giấy gần full chiều rộng 390px, lề nhỏ, chữ vẫn đủ lớn để đọc. */
+  .workarea{padding:8px}
   #wordPage{min-height:640px}
-  #editor{padding:32px;min-height:560px}
+  #editor{padding:20px;min-height:560px}
   #rulerNums span{flex-basis:28px}
   #slideLayout{flex-direction:column}
-  #slideThumbs{flex:none;flex-direction:row;overflow-x:auto;max-height:none;padding-right:0;padding-bottom:10px}
-  .thumb{min-width:170px}
+  /* Bản 1.3 (sửa sau khi soi ảnh v13): trên mobile #slideEditor phải xếp dọc —
+     nếu giữ xếp ngang, panel slide chiếm hết chiều rộng và khung slide chính
+     bị đẩy ra ngoài màn hình 390px. */
+  #slideEditor{flex-direction:column}
+  #slideThumbs{flex:none;width:100%;flex-direction:row;overflow-x:auto;max-height:none;padding-right:0;padding-bottom:10px;scrollbar-width:none;-ms-overflow-style:none;scroll-snap-type:x proximity}
+  #slideThumbs::-webkit-scrollbar{display:none}
+  .thumb{min-width:170px;scroll-snap-align:start}
+  #slideMain{width:100%}
   #backstageNav{flex-basis:150px}
   #apptitle{font-size:15px}
+  #apptitle #saveState{display:none}
+  #qat button{min-width:48px;padding:4px 4px}
+  /* Thanh trạng thái 1 dòng: ẩn phần giữa, thu thanh trượt. */
+  #statusCenter{display:none}
+  #zoomSlider{width:90px}
   #presentSlide h2{font-size:30px}#presentSlide ul{font-size:21px}
 }

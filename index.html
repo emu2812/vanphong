@@ -22,22 +22,13 @@
      Màu theo từng món: Word xanh dương, Excel xanh lá, PowerPoint cam đỏ.
      Quick Access Toolbar: Lưu, Hoàn tác, Làm lại. Tiêu đề: tên app + tên file + trạng thái. -->
 <header id="titlebar">
+  <button id="appmenu" onclick="openBackstage()" title="Mở khung Tệp và chọn ứng dụng" aria-label="Mở khung Tệp và chọn ứng dụng">☰</button>
   <div id="qat" role="toolbar" aria-label="Thanh công cụ truy cập nhanh">
     <button onclick="saveCurrentApp()" title="Lưu (Ctrl+S)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h11l3 3v15H5z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v6h8V3M8 21v-7h8v7" fill="none" stroke="currentColor" stroke-width="1.8"/></svg><span>Lưu</span></button>
     <button onclick="undo()" title="Hoàn tác"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5L3 10l5 5M3 10h11a5 5 0 0 1 0 10h-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>Hoàn tác</span></button>
     <button onclick="redo()" title="Làm lại"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 5l5 5-5 5M21 10H10a5 5 0 0 0 0 10h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>Làm lại</span></button>
   </div>
   <div id="apptitle"><span id="appName">Word</span><span class="titsep"> — </span><span id="docTitle">Tài liệu chưa đặt tên</span><span id="saveState"> • Chưa lưu</span></div>
-  <nav id="appswitch" aria-label="Chọn ứng dụng">
-    <button data-app="word" onclick="switchApp('word')" class="active">Word</button>
-    <button data-app="excel" onclick="switchApp('excel')">Excel</button>
-    <button data-app="ppt" onclick="switchApp('ppt')">PowerPoint</button>
-    <button data-app="pdf" onclick="switchApp('pdf')">PDF &amp; OCR</button>
-    <button data-app="translate" onclick="switchApp('translate')">Dịch</button>
-    <button data-app="files" onclick="switchApp('files')">Quản lý file</button>
-    <button data-app="auth" onclick="switchApp('auth')">Đăng nhập</button>
-    <button data-app="settings" onclick="switchApp('settings')">Cài đặt</button>
-  </nav>
 </header>
 <!-- Hàng thứ hai: dải TAB ribbon. Nút Tệp mở khung Backstage, các tab còn lại đổi panel lệnh bên dưới.
      Tab hiển thị theo từng món (Word / Excel / PowerPoint) — xem renderRibbonTabs trong app.js. -->
@@ -49,7 +40,7 @@
   <!-- ===== WORD ===== -->
   <div class="rpanel" id="rp-word-home" data-app="word" data-tab="home">
     <div class="rgroup"><div class="rbtns">
-      <button class="rbtn wide" onclick="openFontSheet()"><span class="ricon" id="fontLabel">Carlito</span><span class="rlabel">Phông chữ</span></button>
+      <button class="rbtn wide" onclick="openFontSheet()"><span class="ricon" id="fontLabel">Carlito</span></button>
       <button class="rbtn" onclick="openSizeSheet()"><span class="ricon">11</span><span class="rlabel">Cỡ chữ</span></button>
       <button class="rbtn" onclick="cmd('bold')" title="Đậm (Ctrl+B)"><span class="ricon"><b>B</b></span><span class="rlabel">Đậm</span></button>
       <button class="rbtn" onclick="cmd('italic')" title="Nghiêng (Ctrl+I)"><span class="ricon"><i>I</i></span><span class="rlabel">Nghiêng</span></button>
@@ -261,15 +252,11 @@
 <main>
 <!-- ============ WORD ============ -->
 <section id="tab-editor" class="tab active">
-  <div class="docbar">
-    <label for="docName">Tên tài liệu:</label>
-    <input type="text" id="docName" placeholder="Tên tài liệu (ví dụ: Báo cáo tuần)" aria-label="Tên tài liệu">
-    <button onclick="saveDoc()">Lưu vào máy</button>
-    <button onclick="newDoc()">Tài liệu mới</button>
-  </div>
-  <p class="small">Dùng bằng ngón tay: chạm vào trang giấy là gõ ngay. Phím tắt khi có bàn phím: Ctrl+B đậm, Ctrl+I nghiêng, Ctrl+U gạch chân, Ctrl+S lưu. Font mặc định cho tài liệu mới: Carlito 11pt (tương đương Calibri 11).</p>
-  <div id="ruler" aria-hidden="true"><div id="rulerNums"></div></div>
+  <!-- Tên tài liệu giữ dạng ẩn để mọi logic cũ (saveDoc, currentFileName…) chạy nguyên;
+       tên nhìn thấy được nằm trong Backstage → Thông tin (ô "Tên tệp"). -->
+  <input type="text" id="docName" placeholder="Tên tài liệu (ví dụ: Báo cáo tuần)" aria-label="Tên tài liệu" style="display:none">
   <div class="workarea" id="wordWork"><div class="page" id="wordPage">
+    <div id="ruler" aria-hidden="true"><div id="rulerNums"></div><div id="rulerMarkLeft" class="rulermark"></div><div id="rulerMarkRight" class="rulermark"></div></div>
     <div id="editor" contenteditable="true" spellcheck="true" aria-label="Vùng soạn thảo"></div>
   </div></div>
   <input type="file" id="docImageInput" accept="image/*" style="display:none">
@@ -285,15 +272,9 @@
 
 <!-- ============ EXCEL ============ -->
 <section id="tab-sheet" class="tab">
-  <div class="docbar">
-    <label for="sheetName">Tên bảng tính:</label>
-    <input type="text" id="sheetName" placeholder="Tên bảng tính" aria-label="Tên bảng tính">
-    <button onclick="saveSheet()">Lưu vào máy</button>
-    <button onclick="newSheet()">Bảng mới</button>
-    <button onclick="exportCsv()">Xuất .csv</button>
-    <button onclick="exportXlsx()">Xuất .xlsx</button>
-  </div>
-  <p class="small">Dùng bằng ngón tay: <b>chạm một lần để chọn ô, chạm hai lần liên tiếp để sửa ô</b>, vuốt để cuộn bảng. Công thức hỗ trợ: <b>=SUM(A1:A3)</b>, <b>=AVERAGE(A1:A3)</b>, <b>=COUNT</b>, <b>=MAX</b>, <b>=MIN</b>, tham chiếu ô (=A1) và phép tính (+ − × ÷, ngoặc). Sửa xong chạm sang ô khác là tính lại ngay.</p>
+  <!-- Tên bảng tính giữ dạng ẩn để mọi logic cũ chạy nguyên;
+       tên nhìn thấy được nằm trong Backstage → Thông tin (ô "Tên tệp"). -->
+  <input type="text" id="sheetName" placeholder="Tên bảng tính" aria-label="Tên bảng tính" style="display:none">
   <!-- Thanh công thức kiểu Excel: hộp tên ô + fx + ô nhập công thức/giá trị -->
   <div id="formulabar" role="toolbar" aria-label="Thanh công thức">
     <span id="cellAddr" aria-label="Ô đang chọn">A1</span>
@@ -308,18 +289,10 @@
 
 <!-- ============ POWERPOINT ============ -->
 <section id="tab-slides" class="tab">
-  <div class="docbar">
-    <label for="deckName">Tên bài trình bày:</label>
-    <input type="text" id="deckName" placeholder="Tên bài trình bày (ví dụ: Báo cáo tháng)" aria-label="Tên bài trình bày">
-    <button onclick="saveDeck()">Lưu vào máy</button>
-    <button onclick="newDeck()">Bài mới</button>
-  </div>
-  <div class="row">
-    <button onclick="presentDeck()">Trình chiếu toàn màn hình</button>
-    <button onclick="addSlide()">Thêm slide</button>
-    <button onclick="exportPptx()">Xuất .pptx</button>
-  </div>
-  <p class="small">Trình chiếu: bấm nút trình chiếu là xem toàn màn hình; <b>vuốt ngón tay sang trái/phải để chuyển slide</b>, hoặc bấm hai nút Trước/Sau lớn ở dưới màn hình; bấm “Thoát” để về lại trang soạn. Ảnh chèn vào slide được nén nhỏ (tối đa 1280px) trước khi lưu để vừa bộ nhớ trình duyệt.</p>
+  <!-- Tên bài trình bày giữ dạng ẩn để mọi logic cũ chạy nguyên;
+       tên nhìn thấy được nằm trong Backstage → Thông tin (ô "Tên tệp").
+       3 nút Trình chiếu / Thêm slide / Xuất .pptx đã có trong ribbon nên không lặp lại ở đây. -->
+  <input type="text" id="deckName" placeholder="Tên bài trình bày (ví dụ: Báo cáo tháng)" aria-label="Tên bài trình bày" style="display:none">
   <div id="slideLayout"><div id="slideEditor"></div></div>
   <input type="file" id="slideImageInput" accept="image/*" style="display:none">
   <h3>Bài trình bày đã lưu trên máy</h3>
@@ -347,7 +320,6 @@
     <button onclick="clearPageAnnots()">Xóa chú thích trang này</button>
   </div>
   <div id="pdfStatus" class="small"></div>
-  <p class="small">Dùng bằng ngón tay: <b>chụm hai ngón để phóng to/thu nhỏ trang</b>, vẽ chú thích bằng ngón tay trên trang, chạm để thêm ghi chú. Không cần chuột hay thao tác chính xác từng pixel.</p>
   <div id="pdfWrap" style="display:none"><canvas id="pdfCanvas"></canvas><canvas id="pdfOverlay"></canvas></div>
 
   <h3>3a. OCR — nhận dạng chữ thành văn bản sửa được</h3>
@@ -492,6 +464,15 @@
       <button data-bs="save" onclick="backstageShow('save')">Lưu</button>
       <button data-bs="saveas" onclick="backstageShow('saveas')">Lưu thành</button>
       <button data-bs="info" onclick="backstageShow('info')">Thông tin</button>
+      <div class="bs-navgroup">Ứng dụng</div>
+      <button onclick="closeBackstage();switchApp('word')">Word</button>
+      <button onclick="closeBackstage();switchApp('excel')">Excel</button>
+      <button onclick="closeBackstage();switchApp('ppt')">PowerPoint</button>
+      <button onclick="closeBackstage();switchApp('pdf')">PDF &amp; OCR</button>
+      <button onclick="closeBackstage();switchApp('translate')">Dịch</button>
+      <button onclick="closeBackstage();switchApp('files')">Quản lý file</button>
+      <button onclick="closeBackstage();switchApp('auth')">Đăng nhập</button>
+      <button onclick="closeBackstage();switchApp('settings')">Cài đặt</button>
     </nav>
     <div id="backstageContent"></div>
   </div>
