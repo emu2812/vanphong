@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Văn phòng của Bùi — Bản web</title>
+<meta name="description" content="Văn phòng của Bùi: soạn văn bản, bảng tính, trình chiếu, PDF, dịch, quản lý file. Chạy trên iPhone/iPad qua Safari, cài được như PWA khi phục vụ qua https.">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0b6fa4">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="style.css">
+<!-- Font chữ: CHỈ 5 font đã kiểm chứng có subset vietnamese trên Google Fonts.
+     Google Fonts tự trả unicode-range cho tiếng Việt; xem phần "Kiểm chứng font" trong Cài đặt. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;700&family=Inter:wght@400;700&family=Roboto:wght@400;700&family=Noto+Sans:wght@400;700&family=Noto+Serif:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<header>
+  <h1>📄 Văn phòng của Bùi — Bản web</h1>
+  <p>Bản web cho iPhone/iPad, mở bằng Safari. Không có nội dung mẫu sẵn, không thu thập dữ liệu, không nhúng key/secret. File luôn lưu ở máy trước; chỉ khi có tài khoản và có mạng mới đồng bộ.</p>
+  <div id="authBar">Chưa đăng nhập. Vào mục <b>Đăng nhập &amp; Đồng bộ</b> để đăng nhập ngay trong trang này.</div>
+  <p class="small">PWA: khi trang được phục vụ qua https, Safari → Chia sẻ → Thêm vào Màn hình chính để dùng như app. Service worker không chạy ở chế độ file://.</p>
+</header>
+<nav id="tabs" aria-label="Các mục">
+  <button data-tab="editor" class="active">Soạn văn bản</button>
+  <button data-tab="sheet">Bảng tính</button>
+  <button data-tab="slides">Trình chiếu</button>
+  <button data-tab="pdf">PDF &amp; OCR &amp; Chụp ảnh</button>
+  <button data-tab="translate">Dịch</button>
+  <button data-tab="files">Quản lý file</button>
+  <button data-tab="auth">Đăng nhập &amp; Đồng bộ</button>
+  <button data-tab="settings">Cài đặt</button>
+</nav>
+<main>
+<!-- ============ SOẠN VĂN BẢN ============ -->
+<section id="tab-editor" class="tab active">
+  <h2>1. Soạn văn bản</h2>
+  <div class="row">
+    <input type="text" id="docName" placeholder="Tên tài liệu (ví dụ: Báo cáo tuần)" aria-label="Tên tài liệu">
+    <button class="primary" onclick="saveDoc()">💾 Lưu vào máy</button>
+    <button onclick="newDoc()">📄 Tài liệu mới</button>
+  </div>
+  <!-- CẢM ỨNG: chọn font/cỡ/màu/tiêu đề bằng bảng chọn trượt từ dưới lên (bottom sheet),
+       nút lớn ≥48px, bấm vào là gõ. Không menu chỉ hiện khi rê chuột, không chuột phải. -->
+  <div class="toolbar" role="toolbar" aria-label="Thanh công cụ soạn thảo">
+    <button onclick="openFontSheet()">🔤 Font: <span id="fontLabel">Be Vietnam Pro</span></button>
+    <button onclick="openSizeSheet()">🔎 Cỡ chữ</button>
+    <button onclick="cmd('bold')" title="Đậm"><b>B</b></button>
+    <button onclick="cmd('italic')" title="Nghiêng"><i>I</i></button>
+    <button onclick="cmd('underline')" title="Gạch chân"><u>U</u></button>
+    <button onclick="cmd('strikeThrough')" title="Gạch ngang"><s>S</s></button>
+    <button onclick="openColorSheet('fore')">🎨 Màu chữ</button>
+    <button onclick="openColorSheet('hilite')">🖍 Tô sáng</button>
+    <button onclick="openLineSheet()">↕ Khoảng cách dòng</button>
+    <button onclick="cmd('justifyLeft')">⬅ Trái</button>
+    <button onclick="cmd('justifyCenter')">⬌ Giữa</button>
+    <button onclick="cmd('justifyRight')">➡ Phải</button>
+    <button onclick="cmd('justifyFull')">☰ Đều</button>
+    <button onclick="cmd('insertUnorderedList')">• Gạch đầu dòng</button>
+    <button onclick="openHeadingSheet()">📌 Tiêu đề</button>
+    <button onclick="openDocSheet()">📂 Mở tài liệu</button>
+  </div>
+  <p class="small">Dùng bằng ngón tay: chạm vào vùng soạn thảo là gõ ngay (bàn phím chỉ để gõ chữ, không điều khiển app). Mọi nút chức năng đều bấm được bằng tay, không cần chuột hay chuột phải.</p>
+  <div id="editor" contenteditable="true" aria-label="Vùng soạn thảo"></div>
+  <div class="row">
+    <button onclick="exportTxt()">⬇ Xuất .txt</button>
+    <button onclick="exportDocx()">⬇ Xuất .docx</button>
+    <button onclick="translateSelection()">🌐 Dịch đoạn đang chọn rồi chèn dưới đoạn gốc</button>
+  </div>
+  <p class="small">Lưu vào localStorage của trình duyệt, mở lại giữ đúng định dạng (font, cỡ, đậm/nghiêng/gạch chân/gạch ngang, màu, căn lề). Xuất .docx tối giản do trang tự tạo bằng JavaScript thuần, Word/WPS mở được.</p>
+  <h3>Tài liệu đã lưu trên máy</h3>
+  <div id="docList"></div>
+</section>
+
+<!-- ============ BẢNG TÍNH ============ -->
+<section id="tab-sheet" class="tab">
+  <h2>2. Bảng tính</h2>
+  <div class="row">
+    <input type="text" id="sheetName" placeholder="Tên bảng tính" aria-label="Tên bảng tính">
+    <button class="primary" onclick="saveSheet()">💾 Lưu vào máy</button>
+    <button onclick="newSheet()">Bảng mới</button>
+    <button onclick="exportCsv()">⬇ Xuất .csv</button>
+    <button onclick="exportXlsx()">⬇ Xuất .xlsx</button>
+  </div>
+  <p class="small">Dùng bằng ngón tay: <b>chạm một lần để chọn ô, chạm hai lần liên tiếp để sửa ô</b>, vuốt để cuộn bảng. Công thức hỗ trợ: <b>=SUM(A1:A3)</b>, <b>=AVERAGE(A1:A3)</b>, tham chiếu ô (=A1) và vùng. Sửa xong chạm sang ô khác là tính lại ngay. Xuất .xlsx tối giản do trang tự tạo (không cần mạng).</p>
+  <div id="sheetWrap"><table class="sheet" id="sheetTable"></table></div>
+  <h3>Bảng tính đã lưu trên máy</h3>
+  <div id="sheetList"></div>
+</section>
+
+<!-- ============ TRÌNH CHIẾU (bản 1.1) ============ -->
+<section id="tab-slides" class="tab">
+  <h2>Trình chiếu</h2>
+  <p class="small">Tạo bài trình bày nhiều slide, mỗi slide có tiêu đề + nội dung gạch đầu dòng, có thể chèn ảnh. Dùng bằng ngón tay: bấm vào ô là gõ, mỗi dòng trong ô nội dung là một ý gạch đầu dòng. Lưu vào máy, mở lại được như tài liệu và bảng tính. Xuất .pptx tối giản do trang tự tạo (zip + xml bằng JavaScript thuần, không cần thư viện ngoài) — PowerPoint/WPS/LibreOffice mở được.</p>
+  <div class="row">
+    <input type="text" id="deckName" placeholder="Tên bài trình bày (ví dụ: Báo cáo tháng)" aria-label="Tên bài trình bày">
+    <button class="primary" onclick="saveDeck()">💾 Lưu vào máy</button>
+    <button onclick="newDeck()">Bài mới</button>
+  </div>
+  <div class="row">
+    <button class="primary" onclick="presentDeck()">▶ Trình chiếu toàn màn hình</button>
+    <button onclick="addSlide()">＋ Thêm slide</button>
+    <button onclick="exportPptx()">⬇ Xuất .pptx</button>
+  </div>
+  <p class="small">Trình chiếu: bấm nút ▶ là xem toàn màn hình; <b>vuốt ngón tay sang trái/phải để chuyển slide</b>, hoặc bấm hai nút ◀ ▶ lớn ở dưới màn hình; bấm “✕ Thoát” để về lại trang soạn. Ảnh chèn vào slide được nén nhỏ (tối đa 1280px) trước khi lưu để vừa bộ nhớ trình duyệt.</p>
+  <div id="slideEditor"></div>
+  <input type="file" id="slideImageInput" accept="image/*" style="display:none">
+  <h3>Bài trình bày đã lưu trên máy</h3>
+  <div id="deckList"></div>
+</section>
+
+<!-- ============ PDF / OCR / CAMERA ============ -->
+<section id="tab-pdf" class="tab">
+  <h2>3. PDF, OCR và chụp ảnh tạo PDF</h2>
+  <div class="note"><b>Giới hạn bản 1.0 — đọc kỹ:</b> Chú thích (tô sáng, ghi chú, vẽ tay) chỉ lưu kèm tên file trong trình duyệt, <b>KHÔNG ghi đè vào ruột file PDF gốc</b>. Muốn giữ file gốc nguyên vẹn thì tải file gốc về; muốn giữ chú thích thì mở lại đúng file đó trong trang này.</div>
+  <div class="note"><b>PDF cần mạng lần đầu:</b> xem PDF dùng pdf.js qua CDN. Nếu mất mạng, trang sẽ báo rõ “không tải được pdf.js, kiểm tra mạng rồi thử lại” chứ không hiện trang trắng khó hiểu.</div>
+  <div class="row">
+    <label>Chọn file PDF từ máy: <input type="file" id="pdfFile" accept="application/pdf"></label>
+    <button onclick="openPdfFromList()">Mở PDF đã tạo bằng camera (nếu có)</button>
+  </div>
+  <div class="row">
+    <button onclick="pdfPrev()">◀ Trang trước</button>
+    <span id="pdfPageInfo">Chưa mở file nào</span>
+    <button onclick="pdfNext()">Trang sau ▶</button>
+    <select id="pdfTool" aria-label="Công cụ chú thích">
+      <option value="highlight">Tô sáng (kéo hình chữ nhật)</option>
+      <option value="note">Ghi chú (chạm để ghi)</option>
+      <option value="draw">Vẽ tay tự do</option>
+    </select>
+    <button onclick="clearPageAnnots()">Xóa chú thích trang này</button>
+  </div>
+  <div id="pdfStatus" class="small"></div>
+  <p class="small">Dùng bằng ngón tay: <b>chụm hai ngón để phóng to/thu nhỏ trang</b>, vẽ chú thích bằng ngón tay trên trang, chạm để thêm ghi chú. Không cần chuột hay thao tác chính xác từng pixel.</p>
+  <div id="pdfWrap" style="display:none"><canvas id="pdfCanvas"></canvas><canvas id="pdfOverlay"></canvas></div>
+
+  <h3>3a. OCR — nhận dạng chữ thành văn bản sửa được</h3>
+  <div class="note">OCR ưu tiên <b>Tesseract.js qua CDN, chạy ngay trong trình duyệt, nhận dạng vie+eng</b> (tiếng Việt có dấu + tiếng Anh). <b>Cần mạng lần đầu</b> để tải script và dữ liệu vie+eng; lần sau trình duyệt có thể dùng bản đã lưu trong bộ nhớ đệm. Nếu Tesseract.js không chạy được trên Safari, dùng phương án dự phòng OCR.space qua mạng (language vie) — cần Bùi tự tạo key miễn phí ở ocr.space rồi nhập ở Cài đặt; trang <b>không nhúng key trả phí nào</b>. Bản miễn phí của OCR.space giới hạn số lần gọi/ngày và kích thước file. <b>Không bịa kết quả OCR:</b> nhận dạng lỗi thì Bùi sửa tay trực tiếp trong ô kết quả.</div>
+  <div class="row">
+    <button class="primary" onclick="ocrCurrentPage()">🔍 OCR trang PDF đang mở</button>
+    <label>Hoặc chọn ảnh: <input type="file" id="ocrImage" accept="image/*"></label>
+    <button onclick="ocrChosenImage()">🔍 OCR ảnh đã chọn</button>
+  </div>
+  <div id="ocrStatus" class="small"></div>
+  <img id="ocrPreview" alt="" style="max-width:100%;display:none;border:1px solid #ddd">
+  <label>Kết quả OCR — sửa trực tiếp tại đây:</label>
+  <textarea id="ocrResult" placeholder="Kết quả nhận dạng sẽ hiện ở đây, Bùi sửa tay được."></textarea>
+  <div class="row">
+    <button onclick="copyOcr()">📋 Sao chép kết quả</button>
+    <button onclick="insertOcrToDoc()">➕ Chèn vào tài liệu đang soạn</button>
+    <button class="primary" onclick="saveOcrAsDoc()">💾 Lưu thành tài liệu mới</button>
+  </div>
+  <div id="ocrFallback" class="note" style="display:none"></div>
+
+  <h3>3b. Chụp ảnh tạo PDF thật</h3>
+  <div class="note">Chụp bằng camera (getUserMedia) hoặc nút chọn ảnh của iPhone (input capture — cách ổn định nhất trên Safari iPhone). Tạo PDF bằng <b>JavaScript thuần, tự viết mã nhúng ảnh JPEG, không cần thư viện, chạy ngoại tuyến</b> sau khi đã chụp xong. PDF tạo xong được lưu vào danh sách file để đồng bộ, và mở được bằng chế độ OCR ở mục 3a.</div>
+  <div class="row">
+    <button onclick="openCamera()">📷 Mở camera</button>
+    <button onclick="capturePhoto()" id="captureBtn" style="display:none">📸 Chụp ảnh này</button>
+    <button onclick="closeCamera()" id="closeCamBtn" style="display:none">Đóng camera</button>
+    <label>Hoặc chọn ảnh từ máy: <input type="file" id="camFiles" accept="image/*" capture="environment" multiple></label>
+  </div>
+  <video id="camVideo" autoplay playsinline muted style="display:none;max-width:100%;border:1px solid #ddd"></video>
+  <div id="photoList"></div>
+  <div class="row">
+    <button class="primary" onclick="buildPdfFromPhotos()">📕 Tạo file PDF từ các ảnh trên</button>
+    <button onclick="downloadGeneratedPdf()" id="dlGenBtn" style="display:none">⬇ Tải PDF vừa tạo về máy</button>
+    <button onclick="openGeneratedPdfForOcr()" id="openGenBtn" style="display:none">🔍 Mở PDF vừa tạo để OCR</button>
+  </div>
+  <div id="camStatus" class="small"></div>
+</section>
+
+<!-- ============ DỊCH ============ -->
+<section id="tab-translate" class="tab">
+  <h2>4. Dịch</h2>
+  <div class="note"><b>Dịch CẦN MẠNG.</b> Dùng API miễn phí MyMemory qua fetch, không cần key, không nhúng key/secret. Mất mạng thì trang báo rõ, <b>không bịa bản dịch</b>.</div>
+  <div class="row">
+    <select id="srcLang" aria-label="Ngôn ngữ gốc"><option value="vi">Tiếng Việt</option><option value="en">Tiếng Anh</option><option value="zh-CN">Tiếng Trung</option><option value="ko">Tiếng Hàn</option><option value="ja">Tiếng Nhật</option></select>
+    <span>→</span>
+    <select id="dstLang" aria-label="Ngôn ngữ đích"><option value="en">Tiếng Anh</option><option value="vi">Tiếng Việt</option><option value="zh-CN">Tiếng Trung</option><option value="ko">Tiếng Hàn</option><option value="ja">Tiếng Nhật</option></select>
+  </div>
+  <textarea id="transInput" placeholder="Nhập văn bản cần dịch…"></textarea>
+  <div class="row">
+    <button class="primary" onclick="doTranslate()">🌐 Dịch</button>
+    <button onclick="insertTranslationBelow()">Chèn bản dịch ngay dưới đoạn gốc trong tài liệu</button>
+  </div>
+  <label>Kết quả:</label>
+  <textarea id="transOutput" readonly placeholder="Bản dịch sẽ hiện ở đây."></textarea>
+  <div id="transStatus" class="small"></div>
+</section>
+
+<!-- ============ QUẢN LÝ FILE ============ -->
+<section id="tab-files" class="tab">
+  <h2>5. Quản lý file</h2>
+  <p>Danh sách tài liệu của web (lưu ở máy). Trạng thái từng file hiện ngay tại đây: <b>Đã lưu máy</b> / <b>Chờ đồng bộ</b> / <b>Đã lên Drive</b> / <b>Đã lên OneDrive</b>. Trạng thái Drive/OneDrive chỉ chuyển thành “đã lên” khi đồng bộ qua API thật sự thành công.</p>
+  <div class="row">
+    <label>Nhập file từ máy (txt, docx, csv, pdf): <input type="file" id="importFile" accept=".txt,.docx,.csv,.pdf,text/plain"></label>
+  </div>
+  <div id="importStatus" class="small"></div>
+  <div id="fileList"></div>
+  <h3>Tải file từ Drive / OneDrive về mở lại (ngay trong trang này)</h3>
+  <div class="row">
+    <button onclick="listDriveFiles()">📂 Xem file trên Drive</button>
+    <button onclick="listOneDriveFiles()">📂 Xem file trên OneDrive</button>
+  </div>
+  <div id="cloudList"></div>
+</section>
+
+<!-- ============ ĐĂNG NHẬP & ĐỒNG BỘ (NGAY TRONG TRANG NÀY) ============ -->
+<section id="tab-auth" class="tab">
+  <h2>Đăng nhập &amp; Đồng bộ — ngay trong trang này</h2>
+  <p><b>Đăng nhập Google và Microsoft nằm ngay trong trang web “Văn phòng của Bùi” này, không phải app khác, không làm riêng bên ngoài.</b> Đăng nhập xong, Bùi bấm “Lên Drive” / “Lên OneDrive” ở danh sách file (mục Quản lý file) hoặc ngay dưới đây, và tải file về mở lại cũng ngay trong trang này.</p>
+  <div class="note" id="authNote"></div>
+  <div class="row">
+    <button class="primary" onclick="loginGoogle()">🔵 Đăng nhập Google</button>
+    <button class="primary" onclick="loginMicrosoft()">🟦 Đăng nhập Microsoft</button>
+    <button onclick="logoutAll()">Đăng xuất cả hai</button>
+  </div>
+  <div id="authStatus" class="small"></div>
+  <h3>Đồng bộ file đang chọn</h3>
+  <div class="row">
+    <button onclick="syncCurrentDoc('drive')">☁ Lên Drive (tài liệu đang soạn)</button>
+    <button onclick="syncCurrentDoc('onedrive')">☁ Lên OneDrive (tài liệu đang soạn)</button>
+  </div>
+  <p class="small">Nguyên tắc: file luôn lưu ở máy trước. Có tài khoản và có mạng mới đồng bộ. Chưa đăng nhập mà bấm đồng bộ → file chuyển sang “Chờ đồng bộ”, đăng nhập xong bấm lại là lên.</p>
+  <p>Hướng dẫn tự đăng ký app OAuth (Bùi tự làm, không cần đưa key cho ai): <a href="Huong_dan_OAuth_Google_Microsoft.md">Huong_dan_OAuth_Google_Microsoft.md</a> — bản hướng dẫn ngắn viết riêng cho bản web này (file hướng dẫn Azure của nhánh Android chưa có trong thư mục office-app tại thời điểm giao bản web, nên bản web tự viết bản tương đương; khi nhánh Android giao file gốc, thay liên kết này bằng file đó).</p>
+</section>
+
+<!-- ============ CÀI ĐẶT ============ -->
+<section id="tab-settings" class="tab">
+  <h2>Cài đặt</h2>
+  <div class="note"><b>KHÔNG bịa Client ID.</b> Trang không có sẵn Client ID nào. Bùi tự đăng ký app OAuth (xem hướng dẫn ở mục Đăng nhập &amp; Đồng bộ), rồi nhập Client ID vào đây. Chưa nhập thì nút đăng nhập sẽ báo rõ cần làm bước đó trước.</div>
+  <label>Google Client ID (OAuth, chỉ lưu ở máy này):</label>
+  <input type="text" id="googleClientId" placeholder="Dán Client ID do Bùi tự đăng ký vào đây — để trống nếu chưa có">
+  <label>Microsoft Client ID (Azure, chỉ lưu ở máy này):</label>
+  <input type="text" id="msClientId" placeholder="Dán Client ID do Bùi tự đăng ký vào đây — để trống nếu chưa có">
+  <label>OCR.space API key miễn phí (tùy chọn, chỉ dùng khi Tesseract.js không chạy; Bùi tự tạo ở ocr.space):</label>
+  <input type="text" id="ocrSpaceKey" placeholder="Để trống nếu chưa có — trang không nhúng key nào sẵn">
+  <div class="row"><button class="primary" onclick="saveSettings()">💾 Lưu cài đặt</button></div>
+  <div id="settingsStatus" class="small"></div>
+
+  <h3>Kiểm chứng font tiếng Việt</h3>
+  <p>Đoạn kiểm chứng — bấm từng nút để đổi font, xem dấu có vỡ không. Danh sách cuối cùng CHỈ gồm 5 font dưới đây, vì cả 5 đều có subset <b>vietnamese</b> đã kiểm chứng trên Google Fonts (mỗi family đều trả unicode-range phủ dấu tiếng Việt; Be Vietnam Pro vốn thiết kế cho tiếng Việt). Mọi font khác không chắc hỗ trợ tiếng Việt đều đã loại. Font dự phòng hệ thống: -apple-system, “Segoe UI”, sans-serif.</p>
+  <p id="fontTest">Tiếng Việt có dấu: à á ả ã ạ, ồ ộ ổ, ứ ự ử, đ, ê, ơ, ư — Bác sĩ Nguyễn Văn Đô đi học ở Hà Nội</p>
+  <div class="row">
+    <button onclick="testFont('Be Vietnam Pro')">Be Vietnam Pro</button>
+    <button onclick="testFont('Inter')">Inter</button>
+    <button onclick="testFont('Roboto')">Roboto</button>
+    <button onclick="testFont('Noto Sans')">Noto Sans</button>
+    <button onclick="testFont('Noto Serif')">Noto Serif</button>
+  </div>
+  <p class="small">Cách kiểm chứng trước khi giao: (1) đối chiếu metadata Google Fonts — cả 5 family đều liệt kê subset vietnamese; (2) đoạn trên chứa đủ thanh dấu, nguyên âm đôi/triple và chữ đ; (3) nút đổi từng font áp dụng ngay lên đoạn này để Bùi nhìn bằng mắt trên iPhone thật. Lưu ý trung thực: môi trường làm bản web không có Safari iPhone thật, nên bước nhìn bằng mắt cuối cùng cần Bùi kiểm tra trên máy thật; về mặt subset thì cả 5 font đều phủ đầy đủ dấu tiếng Việt nên không font nào vỡ dấu do thiếu glyph.</p>
+  <h3>Phần nào cần mạng, phần nào chạy ngoại tuyến</h3>
+  <ul>
+    <li><b>Ngoại tuyến:</b> soạn thảo, bảng tính, trình chiếu, lưu/mở lại, xuất txt/docx/csv/xlsx/pptx, chú thích PDF đã tải pdf.js, chụp ảnh tạo PDF (sau khi chụp xong).</li>
+    <li><b>Cần mạng:</b> tải pdf.js lần đầu, tải Tesseract.js + dữ liệu vie+eng lần đầu, dịch MyMemory, đăng nhập và đồng bộ Drive/OneDrive, tải Google Fonts lần đầu (sau đó trình duyệt lưu đệm).</li>
+  </ul>
+  <p><a href="README.md">README của bản web</a> — trong đó ghi rõ vì sao không có app App Store thật.</p>
+</section>
+</main>
+<footer>Văn phòng của Bùi — bản web 1.1 • File lưu ở máy trước, đồng bộ sau • Không thu thập dữ liệu • Dùng hoàn toàn bằng cảm ứng, không cần chuột.</footer>
+<!-- Màn hình trình chiếu toàn màn hình (bản 1.1): vuốt để chuyển slide, nút lớn, nút Thoát -->
+<div id="presentOverlay" style="display:none" role="dialog" aria-label="Trình chiếu toàn màn hình">
+  <div id="presentSlide" aria-live="polite"></div>
+  <div id="presentControls">
+    <button onclick="presentPrev()">◀ Trước</button>
+    <span id="presentCounter">Slide 1 / 1</span>
+    <button onclick="presentNext()">Sau ▶</button>
+    <button onclick="exitPresent()">✕ Thoát</button>
+  </div>
+</div>
+<!-- Bottom sheet dùng chung -->
+<div class="sheet-backdrop" id="sheetBackdrop" onclick="closeSheet()"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true"><h3 id="sheetTitle">Chọn</h3><div id="sheetBody"></div><button onclick="closeSheet()">✕ Đóng</button></div>
+<script src="app.js"></script>
+</body>
+</html>
